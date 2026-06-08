@@ -31,6 +31,64 @@
             width: 100vw;
             height: 100vh;
         }
+
+        /* 浮动配置面板：暗红主题，半透明 */
+        .config-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 18px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(139, 0, 0, 0.6);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            min-width: 260px;
+            color: #ddd;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 13px;
+        }
+
+        .config-panel-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #8B0000;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(139, 0, 0, 0.3);
+            letter-spacing: 1px;
+        }
+
+        .config-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .config-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .config-value {
+            color: #cc4444;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #8B0000;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -38,8 +96,29 @@
         <canvas id="gameCanvas"></canvas>
     </div>
 
+    <!-- 浮动配置面板 -->
+    <div class="config-panel">
+        <div class="config-panel-title">⚙ 移动参数配置</div>
+
+        <div class="config-row">
+            <label class="config-label">
+                <span>随机移动距离</span>
+                <span class="config-value" id="distanceValue">0.020</span>
+            </label>
+            <input type="range" id="distanceInput" min="0.005" max="0.080" step="0.005" value="0.020">
+        </div>
+
+        <div class="config-row">
+            <label class="config-label">
+                <span>刷新频率 (秒)</span>
+                <span class="config-value" id="refreshValue">0.20</span>
+            </label>
+            <input type="range" id="refreshInput" min="0.05" max="1.00" step="0.05" value="0.20">
+        </div>
+    </div>
+
     <script>
-        // 配置参数（与 MoveBall.html 保持一致）
+        // 配置参数（与 MoveBall.html 默认值保持一致；可被滑块动态修改）
         const CONFIG = {
             minSpeed: 0.020,    // 最小移动速度
             maxSpeed: 0.020,    // 最大移动速度
@@ -58,6 +137,12 @@
         resizeCanvas();
         window.addEventListener('resize', () => {
             resizeCanvas();
+            // 窗口大小变化时重置球到中心（参考 MoveBall.html）
+            state.x = canvas.width / 2;
+            state.y = canvas.height / 2;
+            state.path = [{ x: state.x, y: state.y }];
+            moveState.currentDir = null;
+            moveState.moveCount = 0;
             render();
         });
 
@@ -78,19 +163,20 @@
             ctx.beginPath();
             ctx.arc(state.x, state.y, 12, 0, Math.PI * 2);
             
+            // 暗红色径向渐变（参考暗红系：#8B0000）
             const gradient = ctx.createRadialGradient(state.x - 4, state.y - 4, 0, state.x, state.y, 15);
-            gradient.addColorStop(0, '#ff8888');
-            gradient.addColorStop(0.5, '#ff4444');
-            gradient.addColorStop(1, '#cc0000');
+            gradient.addColorStop(0, '#cc4444');
+            gradient.addColorStop(0.5, '#8B0000');
+            gradient.addColorStop(1, '#550000');
             ctx.fillStyle = gradient;
             ctx.fill();
             
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#ff4444';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#8B0000';
             ctx.fill();
             ctx.shadowBlur = 0;
             
-            ctx.strokeStyle = '#ff0000';
+            ctx.strokeStyle = '#550000';
             ctx.lineWidth = 2;
             ctx.stroke();
         }
@@ -105,7 +191,7 @@
                 ctx.lineTo(state.path[i].x, state.path[i].y);
             }
             
-            ctx.strokeStyle = 'rgba(255, 68, 68, 0.6)';
+            ctx.strokeStyle = 'rgba(139, 0, 0, 0.7)';
             ctx.lineWidth = 3;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -207,8 +293,40 @@
         }
 
         // 启动游戏（参考 MoveBall.html 的 engine.runRenderLoop）
+        let intervalId = null;
+        function startLoop() {
+            if (intervalId) clearInterval(intervalId);
+            intervalId = setInterval(moveBall, CONFIG.refreshRate);
+        }
+        function restartLoop() {
+            startLoop();
+        }
+
+        // ============== 滑块事件：动态生效 ==============
+        const distanceInput = document.getElementById('distanceInput');
+        const distanceValue = document.getElementById('distanceValue');
+        const refreshInput = document.getElementById('refreshInput');
+        const refreshValue = document.getElementById('refreshValue');
+
+        // 距离滑块：调整移动速度（动态生效，无需重启）
+        distanceInput.addEventListener('input', (e) => {
+            const v = parseFloat(e.target.value);
+            CONFIG.minSpeed = v;
+            CONFIG.maxSpeed = v;
+            distanceValue.textContent = v.toFixed(3);
+        });
+
+        // 刷新频率滑块：调整刷新间隔（需要重启 setInterval 才能生效）
+        refreshInput.addEventListener('input', (e) => {
+            const v = parseFloat(e.target.value);
+            CONFIG.refreshRate = Math.round(v * 1000);
+            refreshValue.textContent = v.toFixed(2);
+            // 重启 setInterval 让新频率立即生效
+            restartLoop();
+        });
+
         render();
-        setInterval(moveBall, CONFIG.refreshRate);
+        startLoop();
     </script>
 </body>
 </html>
