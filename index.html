@@ -321,28 +321,14 @@
         };
 
         function drawBall() {
-            // 清晰化：纯色实心 + 高对比描边，去掉所有模糊效果
-            ctx.shadowBlur = 0;  // 关闭阴影，避免边缘糊化
+            // 纯色实心球：只填充，不描边
+            ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
 
-            // 1) 实心暗红填充（高饱和度，纯色，边缘锐利）
             ctx.beginPath();
             ctx.arc(state.x, state.y, 10, 0, Math.PI * 2);
             ctx.fillStyle = '#8B0000';
             ctx.fill();
-
-            // 2) 高亮内圈，提升立体感但保持清晰（用更亮一点的红色实心圆）
-            ctx.beginPath();
-            ctx.arc(state.x - 2, state.y - 2, 3, 0, Math.PI * 2);
-            ctx.fillStyle = '#cc2222';
-            ctx.fill();
-
-            // 3) 高对比描边（亮色外圈），让球在任何背景下都清晰可见
-            ctx.beginPath();
-            ctx.arc(state.x, state.y, 10, 0, Math.PI * 2);
-            ctx.strokeStyle = '#ff6666';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
         }
 
         function drawPath() {
