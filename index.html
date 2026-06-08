@@ -350,6 +350,9 @@
         const BALL_RADIUS = 8;
         const BALL_DIAMETER = BALL_RADIUS * 2;
         const MIN_BALL_GAP = 4;  // 球之间最小间隔
+        // 球个数范围（提前到这里，供 initBalls 使用）
+        const BALL_COUNT_MIN = 1;
+        const BALL_COUNT_MAX = 100;
 
         // 初始化画布尺寸（仅执行一次，固定大小）
         canvas.width = CANVAS_WIDTH;
@@ -592,9 +595,6 @@
         // 刷新频率范围（秒）
         const REFRESH_MIN = 0.05;
         const REFRESH_MAX = 5.00;
-        // 球个数范围
-        const BALL_COUNT_MIN = 1;
-        const BALL_COUNT_MAX = 100;
 
         // 应用距离输入
         function applyDistance(rawValue) {
