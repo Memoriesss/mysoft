@@ -145,38 +145,7 @@
             padding-bottom: 0;
         }
 
-        /* 折叠态的浮动小圆按钮：尽量小、少遮挡 */
-        .config-fab {
-            position: fixed;
-            top: 16px;
-            left: 16px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #8B0000, #550000);
-            border: 1px solid rgba(255, 100, 100, 0.3);
-            color: #fff;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(139, 0, 0, 0.4);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 101;
-            transition: all 0.2s;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-        }
-
-        .config-fab:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 16px rgba(139, 0, 0, 0.6);
-        }
-
-        .config-fab.show {
-            display: flex;
-        }
+        /* 折叠态的浮动小圆按钮已移除，折叠后只显示细长条面板（用户可点 » 展开） */
 
         .config-row {
             display: flex;
@@ -430,9 +399,6 @@
             </div>
         </div>
     </div>
-
-    <!-- 折叠后显示的浮动小圆按钮 -->
-    <button class="config-fab" id="expandFab" title="展开面板">⚙</button>
 
     <script>
         // 配置参数（与 MoveBall.html 默认值保持一致；可被输入框动态修改）
@@ -967,20 +933,17 @@
         // ============== 面板折叠/展开 ==============
         const configPanel = document.getElementById('configPanel');
         const collapseBtn = document.getElementById('collapseBtn');
-        const expandFab = document.getElementById('expandFab');
 
         function collapsePanel() {
             configPanel.classList.add('collapsed');
             collapseBtn.textContent = '»';
             collapseBtn.title = '展开面板';
-            expandFab.classList.add('show');
         }
 
         function expandPanel() {
             configPanel.classList.remove('collapsed');
             collapseBtn.textContent = '«';
             collapseBtn.title = '折叠面板';
-            expandFab.classList.remove('show');
         }
 
         collapseBtn.addEventListener('click', () => {
@@ -990,8 +953,6 @@
                 collapsePanel();
             }
         });
-
-        expandFab.addEventListener('click', expandPanel);
 
         render();
         startLoop();
