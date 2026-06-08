@@ -374,7 +374,22 @@
             const n = Math.max(1, Math.min(BALL_COUNT_MAX, CONFIG.ballCount));
             const margin = BALL_RADIUS + 4;
 
-            // 计算网格行列（接近正方形）
+            // 1 个球时直接放在画布正中央（无抖动）
+            if (n === 1) {
+                balls.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    path: [{ x: canvas.width / 2, y: canvas.height / 2 }]
+                });
+                moveStates.push({
+                    currentDir: null,
+                    moveCount: 0,
+                    maxMoveCount: Math.round(CONFIG.moveDuration * 1000 / CONFIG.refreshRate)
+                });
+                return;
+            }
+
+            // 多个球：计算网格行列（接近正方形）
             const cols = Math.ceil(Math.sqrt(n));
             const rows = Math.ceil(n / cols);
             const cellW = (canvas.width - margin * 2) / Math.max(1, cols - 1);
