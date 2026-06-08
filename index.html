@@ -58,6 +58,88 @@
             padding-bottom: 10px;
             border-bottom: 1px solid rgba(139, 0, 0, 0.3);
             letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* 折叠/展开按钮 */
+        .config-toggle {
+            background: rgba(139, 0, 0, 0.3);
+            border: 1px solid rgba(139, 0, 0, 0.5);
+            color: #cc4444;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            padding: 0;
+        }
+
+        .config-toggle:hover {
+            background: rgba(139, 0, 0, 0.5);
+            color: #fff;
+        }
+
+        /* 面板内容（可折叠） */
+        .config-body {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            max-height: 500px;
+            opacity: 1;
+        }
+
+        .config-panel.collapsed .config-body {
+            max-height: 0;
+            opacity: 0;
+            margin-top: -14px;
+        }
+
+        .config-panel.collapsed {
+            min-width: auto;
+        }
+
+        .config-panel.collapsed .config-panel-title {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        /* 折叠态的浮动小圆按钮（仅在面板隐藏时显示在角落） */
+        .config-fab {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8B0000, #550000);
+            border: 1px solid rgba(255, 100, 100, 0.4);
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 0, 0, 0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 101;
+            transition: all 0.2s;
+        }
+
+        .config-fab:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(139, 0, 0, 0.6);
+        }
+
+        .config-fab.show {
+            display: flex;
         }
 
         .config-row {
@@ -148,45 +230,53 @@
     </div>
 
     <!-- 浮动配置面板 -->
-    <div class="config-panel">
-        <div class="config-panel-title">⚙ 移动参数配置</div>
-
-        <div class="config-row">
-            <label class="config-label">
-                <span>随机移动距离</span>
-            </label>
-            <input
-                type="number"
-                class="config-input"
-                id="distanceInput"
-                min="0.001"
-                max="0.500"
-                step="0.001"
-                value="0.020"
-                placeholder="0.001 ~ 0.500"
-            >
-            <div class="config-input-hint">范围 0.001 ~ 0.500（与 MoveBall.html 一致: 0.020）</div>
+    <div class="config-panel" id="configPanel">
+        <div class="config-panel-title">
+            <span>⚙ 移动参数配置</span>
+            <button class="config-toggle" id="collapseBtn" title="折叠面板">«</button>
         </div>
 
-        <div class="config-row">
-            <label class="config-label">
-                <span>刷新频率 (秒)</span>
-            </label>
-            <input
-                type="number"
-                class="config-input"
-                id="refreshInput"
-                min="0.05"
-                max="5.00"
-                step="0.05"
-                value="0.20"
-                placeholder="0.05 ~ 5.00"
-            >
-            <div class="config-input-hint">范围 0.05 ~ 5.00 秒（与 MoveBall.html 一致: 0.20）</div>
-        </div>
+        <div class="config-body" id="configBody">
+            <div class="config-row">
+                <label class="config-label">
+                    <span>随机移动距离</span>
+                </label>
+                <input
+                    type="number"
+                    class="config-input"
+                    id="distanceInput"
+                    min="0.001"
+                    max="0.500"
+                    step="0.001"
+                    value="0.020"
+                    placeholder="0.001 ~ 0.500"
+                >
+                <div class="config-input-hint">范围 0.001 ~ 0.500（与 MoveBall.html 一致: 0.020）</div>
+            </div>
 
-        <button class="config-reset" id="resetBtn">↺ 重置还原</button>
+            <div class="config-row">
+                <label class="config-label">
+                    <span>刷新频率 (秒)</span>
+                </label>
+                <input
+                    type="number"
+                    class="config-input"
+                    id="refreshInput"
+                    min="0.05"
+                    max="5.00"
+                    step="0.05"
+                    value="0.20"
+                    placeholder="0.05 ~ 5.00"
+                >
+                <div class="config-input-hint">范围 0.05 ~ 5.00 秒（与 MoveBall.html 一致: 0.20）</div>
+            </div>
+
+            <button class="config-reset" id="resetBtn">↺ 重置还原</button>
+        </div>
     </div>
+
+    <!-- 折叠后显示的浮动小圆按钮 -->
+    <button class="config-fab" id="expandFab" title="展开面板">⚙</button>
 
     <script>
         // 配置参数（与 MoveBall.html 默认值保持一致；可被滑块动态修改）
@@ -461,6 +551,36 @@
         }
 
         resetBtn.addEventListener('click', resetAll);
+
+        // ============== 面板折叠/展开 ==============
+        const configPanel = document.getElementById('configPanel');
+        const configBody = document.getElementById('configBody');
+        const collapseBtn = document.getElementById('collapseBtn');
+        const expandFab = document.getElementById('expandFab');
+
+        function collapsePanel() {
+            configPanel.classList.add('collapsed');
+            collapseBtn.textContent = '»';
+            collapseBtn.title = '展开面板';
+            expandFab.classList.add('show');
+        }
+
+        function expandPanel() {
+            configPanel.classList.remove('collapsed');
+            collapseBtn.textContent = '«';
+            collapseBtn.title = '折叠面板';
+            expandFab.classList.remove('show');
+        }
+
+        collapseBtn.addEventListener('click', () => {
+            if (configPanel.classList.contains('collapsed')) {
+                expandPanel();
+            } else {
+                collapsePanel();
+            }
+        });
+
+        expandFab.addEventListener('click', expandPanel);
 
         render();
         startLoop();
