@@ -389,28 +389,44 @@
                 return;
             }
 
-            // 多个球：计算网格行列（接近正方形）
-            const cols = Math.ceil(Math.sqrt(n));
-            const rows = Math.ceil(n / cols);
-            const cellW = (canvas.width - margin * 2) / Math.max(1, cols - 1);
-            const cellH = (canvas.height - margin * 2) / Math.max(1, rows - 1);
+            // 多个球：以画布中心为起点，螺旋向外分布
+            // 黄金角 (≈137.5°) 配合 sqrt 半径递增，能让任意球数的分布都均匀无条纹
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));  // ≈ 2.39996 弧度
+            // 径向步长 = 球直径 + 最小间隔，保证相邻圈球不会重叠
+            const stepRadius = BALL_DIAMETER + MIN_BALL_GAP;
 
             for (let i = 0; i < n; i++) {
-                const r = Math.floor(i / cols);
-                const c = i % cols;
-                // 基础位置 + 网格内随机抖动
-                const baseX = margin + c * cellW + (cellW * 0.5 - cellW * 0.5);
-                const baseY = margin + r * cellH;
+                // 球 0 直接放中心；其余按螺旋放置
+                let x, y;
+                if (i === 0) {
+                    x = cx;
+                    y = cy;
+                } else {
+                    // 第 k 圈 (k 从 1 开始)：半径 = k * stepRadius * 0.85
+                    // 0.85 让相邻圈的球稍微错开，避免对齐
+                    const radius = Math.sqrt(i) * stepRadius * 0.85;
+                    const angle = i * GOLDEN_ANGLE;
+                    x = cx + Math.cos(angle) * radius;
+                    y = cy + Math.sin(angle) * radius;
+                }
 
-                // 加一点随机扰动，但通过二次校验避免重叠
-                let x = baseX + (Math.random() - 0.5) * cellW * 0.3;
-                let y = baseY + (Math.random() - 0.5) * cellH * 0.3;
+                // 边界保护：如果球超出画布，向中心收缩
+                if (x < margin || x > canvas.width - margin ||
+                    y < margin || y > canvas.height - margin) {
+                    const angle2 = Math.atan2(y - cy, x - cx);
+                    let r = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+                    // 限制最大半径，使球不超出画布
+                    const maxR = Math.min(cx - margin, cy - margin);
+                    if (r > maxR) r = maxR;
+                    x = cx + Math.cos(angle2) * r;
+                    y = cy + Math.sin(angle2) * r;
+                    x = Math.max(margin, Math.min(canvas.width - margin, x));
+                    y = Math.max(margin, Math.min(canvas.height - margin, y));
+                }
 
-                // 边界保护
-                x = Math.max(margin, Math.min(canvas.width - margin, x));
-                y = Math.max(margin, Math.min(canvas.height - margin, y));
-
-                // 重叠规避：若与已放置的球距离 < 直径+间距，则再次随机偏移
+                // 重叠规避：若与已放置的球距离 < 直径+间距，则沿连线方向推开
                 let attempts = 0;
                 while (attempts < 100) {
                     let overlap = false;
@@ -418,12 +434,12 @@
                         const dx = x - balls[j].x;
                         const dy = y - balls[j].y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < BALL_DIAMETER + MIN_BALL_GAP) {
+                        if (dist < BALL_DIAMETER + MIN_BALL_GAP && dist > 0) {
                             overlap = true;
                             // 沿远离对方的方向推开
-                            const angle = Math.atan2(dy, dx);
-                            x = balls[j].x + Math.cos(angle) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
-                            y = balls[j].y + Math.sin(angle) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
+                            const angle3 = Math.atan2(dy, dx);
+                            x = balls[j].x + Math.cos(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
+                            y = balls[j].y + Math.sin(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
                             x = Math.max(margin, Math.min(canvas.width - margin, x));
                             y = Math.max(margin, Math.min(canvas.height - margin, y));
                             break;
