@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>可调随机范围移动小球</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; overflow: hidden; }
+        #renderCanvas { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        // 初始化引擎
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true);
+
+        // 配置参数（可在此处调整随机范围）
+        const CONFIG = {
+            minSpeed: 0.020,   // 最小移动速度
+            maxSpeed: 0.020,   // 最大移动速度
+            angleRange: 360, // 方向随机角度范围（度）
+            moveDuration: 1, // 每次随机移动持续时间（秒）
+            debug: true      // 显示调试信息
+        };
+
+        const createScene = () => {
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1);
+
+            // 全屏正交相机
+            const camera = new BABYLON.UniversalCamera(
+                "camera",
+                new BABYLON.Vector3(0, 0, -50),
+                scene
+            );
+            camera.mode = BABYLON.Camera.ORTHOGRAPHIC_CAMERA;
+            camera.orthoLeft = -window.innerWidth / 50;
+            camera.orthoRight = window.innerWidth / 50;
+            camera.orthoTop = window.innerHeight / 50;
+            camera.orthoBottom = -window.innerHeight / 50;
+
+            // 环境光
+            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
+ 
+            const balls = [];
+           
+            let number = 1;
+            for(let i = 0; i < number; i++) {
+                const ball = BABYLON.MeshBuilder.CreateSphere(`ball${i}`, {diameter: 3}, scene);
+                
+                // 设置红色材质
+                const material = new BABYLON.StandardMaterial("red", scene);
+                material.diffuseColor = new BABYLON.Color3(1, 0, 0);
+                ball.material = material;
+                
+                // 初始化随机位置和速度
+                ball.position.x = (i-number%2) * 5;
+                if(number==1){
+                    ball.position.x=0;
+                }
+                ball.position.y =  0;
+              
+                
+                balls.push(ball);
+            }
+
+            // 运动控制变量
+            let currentDirection = BABYLON.Vector3.Zero();
+            let currentSpeed = 0;
+            let moveTimer = 0;
+
+            // 随机生成新方向
+            const generateNewDirection = () => {
+                const radian = BABYLON.Angle.FromDegrees(
+                    Math.random() * CONFIG.angleRange
+                ).radians();
+                
+                return new BABYLON.Vector3(
+                    Math.cos(radian),
+                    Math.sin(radian),
+                    0
+                ).normalize();
+            };
+
+            // 生成新速度
+            const generateNewSpeed = () => {
+                return CONFIG.minSpeed + 
+                    Math.random() * (CONFIG.maxSpeed - CONFIG.minSpeed);
+            };
+
+            // 初始化首次运动
+            currentDirection = generateNewDirection();
+            currentSpeed = generateNewSpeed();
+
+            // 每帧更新
+            scene.registerBeforeRender(() => {
+
+                balls.forEach(ball => {
+                 // 位置更新
+                 ball.position.addInPlace(
+                    currentDirection.scale(currentSpeed)
+                );
+
+                // 边界反弹
+                const screenWidth = window.innerWidth / 50;
+                const screenHeight = window.innerHeight / 50;
+                
+                if (Math.abs(ball.position.x) > screenWidth) {
+                    currentDirection.x *= -1;
+                    ball.position.x = Math.sign(ball.position.x) * screenWidth;
+                }
+                
+                if (Math.abs(ball.position.y) > screenHeight) {
+                    currentDirection.y *= -1;
+                    ball.position.y = Math.sign(ball.position.y) * screenHeight;
+                }
+
+                // 定时更新方向
+                moveTimer += engine.getDeltaTime() / 5;
+                if (moveTimer > CONFIG.moveDuration) {
+                    currentDirection = generateNewDirection();
+                    currentSpeed = generateNewSpeed();
+                    moveTimer = 0;
+                }
+                });
+              
+
+                
+            });
+
+            // 窗口大小适配
+            window.addEventListener('resize', () => {
+                engine.resize();
+                camera.orthoLeft = -window.innerWidth / 50;
+                camera.orthoRight = window.innerWidth / 50;
+                camera.orthoTop = window.innerHeight / 50;
+                camera.orthoBottom = -window.innerHeight / 50;
+            });
+
+            // 调试面板
+            if (CONFIG.debug) {
+                const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+                
+                const panel = new BABYLON.GUI.StackPanel();
+                panel.width = "300px";
+                panel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+                panel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+                advancedTexture.addControl(panel);
+
+                const addDebugText = (label, value) => {
+                    const textBlock = new BABYLON.GUI.TextBlock();
+                    textBlock.text = `${label}: ${value}`;
+                    textBlock.color = "white";
+                    textBlock.height = "30px";
+                    panel.addControl(textBlock);
+                    return textBlock;
+                };
+
+                // 实时显示参数
+                addDebugText("当前速度", currentSpeed.toFixed(2));
+                addDebugText("移动方向", `X:${currentDirection.x.toFixed(2)}, Y:${currentDirection.y.toFixed(2)}`);
+                addDebugText("剩余时间", (CONFIG.moveDuration - moveTimer).toFixed(1));
+            }
+
+            return scene;
+        };
+
+        const scene = createScene();
+        engine.runRenderLoop(() => scene.render());
+    </script>
+</body>
+</html>

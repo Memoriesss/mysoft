@@ -284,39 +284,72 @@
             drawBall();
         }
 
-        function moveBall() {
-            // 从4个标准方向中随机选一个（4个方向概率完全相等）
+        // 移动状态：方向持续一段时间后再切换，模拟"漂移"效果
+        let moveState = {
+            currentDir: null,      // 当前方向
+            moveCount: 0,          // 当前方向已移动步数
+            maxMoveCount: 5        // 同一方向最多连续移动多少步（5*0.2s=1s, 参考MoveBall.html的moveDuration=1s）
+        };
+
+        function generateRandomDirection() {
+            // 从4个标准方向中随机选一个
             const directions = [
                 { dx: 0, dy: -1 },  // 上
                 { dx: 0, dy: 1 },   // 下
                 { dx: -1, dy: 0 },  // 左
                 { dx: 1, dy: 0 }    // 右
             ];
+            return directions[Math.floor(Math.random() * directions.length)];
+        }
+
+        function moveBall() {
+            // 参考 MoveBall.html 的策略：维护一个当前方向，持续一段时间后再随机换方向
+            // 到达时间或到达边界时切换方向（边界反弹 + 重新选方向）
             
-            const randomDir = directions[Math.floor(Math.random() * directions.length)];
+            const ballRadius = 12;
             const distance = state.minDistance + Math.random() * (state.maxDistance - state.minDistance);
             const scaleFactor = 100;
             
-            let newX = state.x + randomDir.dx * distance * scaleFactor;
-            let newY = state.y + randomDir.dy * distance * scaleFactor;
+            // 首次移动或当前方向已用完时，生成新方向
+            if (!moveState.currentDir || moveState.moveCount >= moveState.maxMoveCount) {
+                moveState.currentDir = generateRandomDirection();
+                moveState.moveCount = 0;
+            }
             
-            // 边界反弹：当球到达边界时，强制让下一次移动向反方向
-            // 这样球会持续移动而不是"卡在"边界
-            const ballRadius = 12;
+            let newX = state.x + moveState.currentDir.dx * distance * scaleFactor;
+            let newY = state.y + moveState.currentDir.dy * distance * scaleFactor;
+            
+            // 边界反弹：参考 MoveBall.html 的实现，撞到边界时反转对应方向
+            let bounced = false;
             if (newX < ballRadius) {
-                newX = ballRadius + 1;
+                newX = ballRadius;
+                moveState.currentDir.dx = 1;  // 反转为向右
+                bounced = true;
             } else if (newX > canvas.width - ballRadius) {
-                newX = canvas.width - ballRadius - 1;
+                newX = canvas.width - ballRadius;
+                moveState.currentDir.dx = -1;  // 反转为向左
+                bounced = true;
             }
             
             if (newY < ballRadius) {
-                newY = ballRadius + 1;
+                newY = ballRadius;
+                moveState.currentDir.dy = 1;  // 反转为向下
+                bounced = true;
             } else if (newY > canvas.height - ballRadius) {
-                newY = canvas.height - ballRadius - 1;
+                newY = canvas.height - ballRadius;
+                moveState.currentDir.dy = -1;  // 反转为向上
+                bounced = true;
             }
             
             state.x = newX;
             state.y = newY;
+            
+            // 只有在没发生边界反弹时才增加计数（反弹后立即用新方向）
+            if (!bounced) {
+                moveState.moveCount++;
+            } else {
+                moveState.moveCount = 0;  // 反弹后重置计数
+            }
             
             state.path.push({ x: state.x, y: state.y });
             
@@ -353,6 +386,8 @@
             state.x = canvas.width / 2;
             state.y = canvas.height / 2;
             state.path = [{ x: canvas.width / 2, y: canvas.height / 2 }];
+            moveState.currentDir = null;  // 重置方向，下次移动时重新选
+            moveState.moveCount = 0;
             render();
             startGame();
         }
