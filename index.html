@@ -19,17 +19,25 @@
 
         body {
             background-color: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .game-container {
-            width: 100vw;
-            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
+        /* 固定尺寸的画布：1200x800，不会随窗口拉伸 */
         #gameCanvas {
             display: block;
-            width: 100vw;
-            height: 100vh;
+            width: 1200px;
+            height: 800px;
+            background-color: #111111;
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            box-shadow: 0 0 30px rgba(139, 0, 0, 0.15);
         }
 
         /* 浮动配置面板：暗红主题，半透明 */
@@ -267,12 +275,12 @@
                     class="config-input"
                     id="ballCountInput"
                     min="1"
-                    max="20"
+                    max="100"
                     step="1"
                     value="1"
-                    placeholder="1 ~ 20"
+                    placeholder="1 ~ 100"
                 >
-                <div class="config-input-hint">范围 1 ~ 20（与 MoveBall.html 一致: 1）</div>
+                <div class="config-input-hint">范围 1 ~ 100（与 MoveBall.html 一致: 1）</div>
             </div>
 
             <div class="config-row">
@@ -332,25 +340,22 @@
         // 当前生效配置（从 localStorage 或默认值初始化）
         const CONFIG = { ...DEFAULT_CONFIG };
 
-        // 画布尺寸：充满整个窗口（参考 MoveBall.html 的全屏正交相机）
+        // 画布固定尺寸（不随窗口缩放拉伸）
+        const CANVAS_WIDTH = 1200;
+        const CANVAS_HEIGHT = 800;
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
         // 球参数
-        const BALL_RADIUS = 10;
+        const BALL_RADIUS = 8;
         const BALL_DIAMETER = BALL_RADIUS * 2;
         const MIN_BALL_GAP = 4;  // 球之间最小间隔
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', () => {
-            resizeCanvas();
-            initBalls();
-            render();
-        });
+        // 初始化画布尺寸（仅执行一次，固定大小）
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        // 窗口缩放时不再重设画布尺寸（画布保持固定大小，居中显示）
 
         // ============== 多球数据模型 ==============
         // 每个球：{ x, y, path: [{x,y}] } + 共享的 moveState 数组
@@ -363,7 +368,7 @@
         function initBalls() {
             balls = [];
             moveStates = [];
-            const n = Math.max(1, Math.min(20, CONFIG.ballCount));
+            const n = Math.max(1, Math.min(BALL_COUNT_MAX, CONFIG.ballCount));
             const margin = BALL_RADIUS + 4;
 
             // 计算网格行列（接近正方形）
@@ -389,7 +394,7 @@
 
                 // 重叠规避：若与已放置的球距离 < 直径+间距，则再次随机偏移
                 let attempts = 0;
-                while (attempts < 50) {
+                while (attempts < 100) {
                     let overlap = false;
                     for (let j = 0; j < balls.length; j++) {
                         const dx = x - balls[j].x;
@@ -589,7 +594,7 @@
         const REFRESH_MAX = 5.00;
         // 球个数范围
         const BALL_COUNT_MIN = 1;
-        const BALL_COUNT_MAX = 20;
+        const BALL_COUNT_MAX = 100;
 
         // 应用距离输入
         function applyDistance(rawValue) {
