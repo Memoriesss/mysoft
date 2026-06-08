@@ -285,24 +285,45 @@
         }
 
         function moveBall() {
+            // 从4个标准方向中随机选一个（4个方向概率完全相等）
             const directions = [
-                { dx: 0, dy: -1 },
-                { dx: 0, dy: 1 },
-                { dx: -1, dy: 0 },
-                { dx: 1, dy: 0 }
+                { dx: 0, dy: -1 },  // 上
+                { dx: 0, dy: 1 },   // 下
+                { dx: -1, dy: 0 },  // 左
+                { dx: 1, dy: 0 }    // 右
             ];
             
             const randomDir = directions[Math.floor(Math.random() * directions.length)];
             const distance = state.minDistance + Math.random() * (state.maxDistance - state.minDistance);
             const scaleFactor = 100;
             
-            const newX = state.x + randomDir.dx * distance * scaleFactor;
-            const newY = state.y + randomDir.dy * distance * scaleFactor;
+            let newX = state.x + randomDir.dx * distance * scaleFactor;
+            let newY = state.y + randomDir.dy * distance * scaleFactor;
             
-            state.x = Math.max(12, Math.min(canvas.width - 12, newX));
-            state.y = Math.max(12, Math.min(canvas.height - 12, newY));
+            // 边界反弹：当球到达边界时，强制让下一次移动向反方向
+            // 这样球会持续移动而不是"卡在"边界
+            const ballRadius = 12;
+            if (newX < ballRadius) {
+                newX = ballRadius + 1;
+            } else if (newX > canvas.width - ballRadius) {
+                newX = canvas.width - ballRadius - 1;
+            }
+            
+            if (newY < ballRadius) {
+                newY = ballRadius + 1;
+            } else if (newY > canvas.height - ballRadius) {
+                newY = canvas.height - ballRadius - 1;
+            }
+            
+            state.x = newX;
+            state.y = newY;
             
             state.path.push({ x: state.x, y: state.y });
+            
+            // 限制轨迹长度，避免性能问题
+            if (state.path.length > 2000) {
+                state.path.shift();
+            }
             
             render();
         }
