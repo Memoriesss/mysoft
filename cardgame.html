@@ -171,7 +171,37 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 12px 30px rgba(139, 0, 0, 0.25);
+            position: relative;
+            overflow: hidden;
         }
+        .card .back {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(139, 0, 0, 0.1),
+                rgba(139, 0, 0, 0.1) 10px,
+                rgba(20, 20, 24, 0.2) 10px,
+                rgba(20, 20, 24, 0.2) 20px
+            );
+            font-size: 80px;
+            font-weight: 800;
+            color: rgba(255, 136, 102, 0.5);
+            letter-spacing: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card .front {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card.revealed .back { opacity: 0; }
+        .card.revealed .front { opacity: 1; }
         .card svg {
             width: 130px;
             height: 130px;
@@ -338,9 +368,10 @@
 
         <!-- 游戏进行区 -->
         <section class="stage" id="playStage">
-            <div class="prompt">— 卡片上是哪个形状？—</div>
+            <div class="prompt">— 猜一猜卡片背面是什么形状？—</div>
             <div class="card" id="card">
-                <!-- 题目形状 SVG 动态注入 -->
+                <div class="back">?</div>
+                <div class="front" id="cardFront"></div>
             </div>
             <div class="options" id="options">
                 <!-- 三个选项动态注入 -->
@@ -408,6 +439,7 @@
 
         const $ = (id) => document.getElementById(id);
         const cardEl = $('card');
+        const cardFrontEl = $('cardFront');
         const optionsEl = $('options');
         const feedbackEl = $('feedback');
         const playStage = $('playStage');
@@ -436,12 +468,13 @@
             feedbackEl.textContent = '';
             feedbackEl.className = 'feedback';
             optionsEl.innerHTML = '';
+            cardEl.classList.remove('revealed'); // 隐藏正面
             state.locked = false;
 
             // 1. 选答案
             state.answer = pickAnswer();
-            // 2. 渲染题目卡
-            cardEl.innerHTML = SHAPES[state.answer].svg;
+            // 2. 形状放入正面（不显示）
+            cardFrontEl.innerHTML = SHAPES[state.answer].svg;
             // 3. 生成 3 个选项（打乱后呈现，必含正确答案）
             const optionKeys = shuffle(SHAPE_KEYS);
             optionKeys.forEach((key) => {
@@ -465,6 +498,9 @@
             if (state.locked) return;
             state.locked = true;
 
+            // 先揭晓卡片正面
+            cardEl.classList.add('revealed');
+
             // 标记所有按钮为 disabled
             Array.from(optionsEl.children).forEach((el) => el.classList.add('disabled'));
 
@@ -484,7 +520,7 @@
                 if (right) right.classList.add('correct');
             }
 
-            // 1.2s 后进入下一回合或结束
+            // 1.8s 后进入下一回合或结束
             setTimeout(() => {
                 if (state.round >= TOTAL_ROUNDS) {
                     showResult();
@@ -492,7 +528,7 @@
                     state.round += 1;
                     renderRound();
                 }
-            }, 1200);
+            }, 1800);
         }
 
         // 结算
