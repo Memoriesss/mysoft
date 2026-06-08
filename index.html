@@ -353,6 +353,8 @@
         // 球个数范围（提前到这里，供 initBalls 使用）
         const BALL_COUNT_MIN = 1;
         const BALL_COUNT_MAX = 100;
+        // 边界反弹距离：球撞到边框后会被推回"距边框 BOUNCE_DISTANCE"的位置，制造弹性反弹效果
+        const BOUNCE_DISTANCE = 30;
 
         // 初始化画布尺寸（仅执行一次，固定大小）
         canvas.width = CANVAS_WIDTH;
@@ -542,25 +544,29 @@
                 let newX = ball.x + ms.currentDir.dx * speed * scaleFactor;
                 let newY = ball.y + ms.currentDir.dy * speed * scaleFactor;
 
-                // 边界反弹：撞到边界时反转对应方向
+                // 边界反弹：球撞到边框时，反转方向并向内推回一段反弹距离
                 let bounced = false;
                 if (newX < margin) {
-                    newX = margin;
-                    ms.currentDir.dx = 1;  // 反转为向右
+                    // 撞到左边界：反转 dx 为向右，并推回到 margin + BOUNCE_DISTANCE
+                    ms.currentDir.dx = 1;
+                    newX = margin + BOUNCE_DISTANCE;
                     bounced = true;
                 } else if (newX > canvas.width - margin) {
-                    newX = canvas.width - margin;
-                    ms.currentDir.dx = -1;  // 反转为向左
+                    // 撞到右边界：反转 dx 为向左
+                    ms.currentDir.dx = -1;
+                    newX = canvas.width - margin - BOUNCE_DISTANCE;
                     bounced = true;
                 }
 
                 if (newY < margin) {
-                    newY = margin;
-                    ms.currentDir.dy = 1;  // 反转为向下
+                    // 撞到上边界：反转 dy 为向下
+                    ms.currentDir.dy = 1;
+                    newY = margin + BOUNCE_DISTANCE;
                     bounced = true;
                 } else if (newY > canvas.height - margin) {
-                    newY = canvas.height - margin;
-                    ms.currentDir.dy = -1;  // 反转为向上
+                    // 撞到下边界：反转 dy 为向上
+                    ms.currentDir.dy = -1;
+                    newY = canvas.height - margin - BOUNCE_DISTANCE;
                     bounced = true;
                 }
 
