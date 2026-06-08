@@ -275,12 +275,29 @@
                     class="config-input"
                     id="ballCountInput"
                     min="1"
-                    max="100"
+                    max="100000"
                     step="1"
                     value="1"
-                    placeholder="1 ~ 100"
+                    placeholder="1 ~ 100000"
                 >
-                <div class="config-input-hint">范围 1 ~ 100（与 MoveBall.html 一致: 1）</div>
+                <div class="config-input-hint">范围 1 ~ 100000（建议 ≤500，否则碰撞检测会变慢）</div>
+            </div>
+
+            <div class="config-row">
+                <label class="config-label">
+                    <span>球的大小 (半径)</span>
+                </label>
+                <input
+                    type="number"
+                    class="config-input"
+                    id="ballRadiusInput"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value="8"
+                    placeholder="1 ~ 50"
+                >
+                <div class="config-input-hint">范围 1 ~ 50 像素（半径）</div>
             </div>
 
             <div class="config-row">
@@ -331,6 +348,7 @@
         // 配置参数（与 MoveBall.html 默认值保持一致；可被输入框动态修改）
         const DEFAULT_CONFIG = {
             ballCount: 1,        // 球的个数
+            ballRadius: 8,       // 球半径（像素）
             minSpeed: 0.020,     // 最小移动速度
             maxSpeed: 0.020,     // 最大移动速度
             refreshRate: 200,    // 刷新周期（毫秒）
@@ -346,13 +364,13 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 球参数
-        const BALL_RADIUS = 8;
-        const BALL_DIAMETER = BALL_RADIUS * 2;
+        // 球参数（来自 CONFIG.ballRadius，可被输入框动态修改）
+        let BALL_RADIUS = CONFIG.ballRadius;
+        let BALL_DIAMETER = BALL_RADIUS * 2;
         const MIN_BALL_GAP = 4;  // 球之间最小间隔
         // 球个数范围（提前到这里，供 initBalls 使用）
         const BALL_COUNT_MIN = 1;
-        const BALL_COUNT_MAX = 100;
+        const BALL_COUNT_MAX = 100000;
         // 边界反弹距离：球撞到边框后会被推回"距边框 BOUNCE_DISTANCE"的位置，制造弹性反弹效果
         const BOUNCE_DISTANCE = 30;
 
@@ -502,10 +520,13 @@
         function render() {
             // 完全清屏，确保每一帧画面都清晰锐利
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 依次绘制所有球的轨迹和球体
+
+            // 渲染顺序：先画所有球的轨迹（底层），再画所有球体（顶层）
+            // 这样球体永远在轨迹之上，轨迹不会遮挡球
             for (let i = 0; i < balls.length; i++) {
                 drawPath(balls[i]);
+            }
+            for (let i = 0; i < balls.length; i++) {
                 drawBall(balls[i]);
             }
         }
@@ -621,6 +642,7 @@
 
         // ============== 数字输入框：手输入动态生效 ==============
         const ballCountInput = document.getElementById('ballCountInput');
+        const ballRadiusInput = document.getElementById('ballRadiusInput');
         const distanceInput = document.getElementById('distanceInput');
         const refreshInput = document.getElementById('refreshInput');
         const saveBtn = document.getElementById('saveBtn');
@@ -632,6 +654,9 @@
         // 刷新频率范围（秒）
         const REFRESH_MIN = 0.05;
         const REFRESH_MAX = 5.00;
+        // 球个数范围
+        const BALL_RADIUS_MIN = 1;
+        const BALL_RADIUS_MAX = 50;
 
         // 应用距离输入
         function applyDistance(rawValue) {
@@ -686,6 +711,28 @@
             return true;
         }
 
+        // 应用球大小输入
+        function applyBallRadius(rawValue) {
+            const v = parseInt(rawValue, 10);
+            if (isNaN(v)) {
+                ballRadiusInput.classList.add('invalid');
+                return false;
+            }
+            const clamped = Math.max(BALL_RADIUS_MIN, Math.min(BALL_RADIUS_MAX, v));
+            ballRadiusInput.classList.remove('invalid');
+            CONFIG.ballRadius = clamped;
+            if (clamped !== v) {
+                ballRadiusInput.value = clamped;
+            }
+            // 同步全局半径和直径
+            BALL_RADIUS = CONFIG.ballRadius;
+            BALL_DIAMETER = BALL_RADIUS * 2;
+            // 球大小变了：重新初始化球的位置（新的不重叠分布）
+            initBalls();
+            render();
+            return true;
+        }
+
         // 球个数：回车或失焦时生效
         ballCountInput.addEventListener('change', (e) => applyBallCount(e.target.value));
         ballCountInput.addEventListener('blur', (e) => applyBallCount(e.target.value));
@@ -693,6 +740,17 @@
             if (e.key === 'Enter') {
                 e.preventDefault();
                 applyBallCount(e.target.value);
+                e.target.blur();
+            }
+        });
+
+        // 球大小：回车或失焦时生效
+        ballRadiusInput.addEventListener('change', (e) => applyBallRadius(e.target.value));
+        ballRadiusInput.addEventListener('blur', (e) => applyBallRadius(e.target.value));
+        ballRadiusInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyBallRadius(e.target.value);
                 e.target.blur();
             }
         });
@@ -725,12 +783,14 @@
         function saveConfig() {
             // 先让当前输入值生效
             applyBallCount(ballCountInput.value);
+            applyBallRadius(ballRadiusInput.value);
             applyDistance(distanceInput.value);
             applyRefresh(refreshInput.value);
 
             // 保存到 localStorage
             const toSave = {
                 ballCount: CONFIG.ballCount,
+                ballRadius: CONFIG.ballRadius,
                 minSpeed: CONFIG.minSpeed,
                 maxSpeed: CONFIG.maxSpeed,
                 refreshRate: CONFIG.refreshRate,
@@ -778,6 +838,7 @@
                 if (saved) {
                     const data = JSON.parse(saved);
                     if (typeof data.ballCount === 'number') CONFIG.ballCount = data.ballCount;
+                    if (typeof data.ballRadius === 'number') CONFIG.ballRadius = data.ballRadius;
                     if (typeof data.minSpeed === 'number') CONFIG.minSpeed = data.minSpeed;
                     if (typeof data.maxSpeed === 'number') CONFIG.maxSpeed = data.maxSpeed;
                     if (typeof data.refreshRate === 'number') CONFIG.refreshRate = data.refreshRate;
@@ -786,12 +847,16 @@
             } catch (err) {
                 // 解析失败则使用默认值
             }
+            // 同步到全局 BALL_RADIUS（注意：BALL_COUNT_MIN/MAX、BOUNCE_DISTANCE 等常量不依赖配置）
+            BALL_RADIUS = CONFIG.ballRadius;
+            BALL_DIAMETER = BALL_RADIUS * 2;
         }
 
         // 初始化：先读 localStorage，再同步到 UI，再初始化球
         loadConfig();
         initBalls();
         ballCountInput.value = CONFIG.ballCount;
+        ballRadiusInput.value = CONFIG.ballRadius;
         distanceInput.value = CONFIG.minSpeed;
         refreshInput.value = (CONFIG.refreshRate / 1000).toFixed(2);
 
