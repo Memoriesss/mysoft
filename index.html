@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机球移动游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .game-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #gameCanvas {
+            background-color: #111111;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.1);
+        }
+
+        .controls {
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.7));
+            padding: 20px 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            align-items: center;
+            justify-content: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .control-value {
+            color: #ff4444;
+            font-size: 12px;
+        }
+
+        input[type="range"] {
+            width: 150px;
+            accent-color: #ff4444;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff4444, #cc0000);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 0, 0, 0.5);
+        }
+
+        .btn-secondary {
+            background-color: #333;
+            color: white;
+            border: 1px solid #444;
+        }
+
+        .btn-secondary:hover {
+            background-color: #444;
+        }
+
+        .status {
+            color: #888;
+            font-size: 13px;
+        }
+
+        .status.running {
+            color: #44ff44;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label class="control-label">最小移动距离</label>
+            <input type="range" id="minDistance" min="0.1" max="0.4" step="0.05" value="0.1">
+            <span class="control-value" id="minDistanceValue">0.1</span>
+        </div>
+        
+        <div class="control-group">
+            <label class="control-label">最大移动距离</label>
+            <input type="range" id="maxDistance" min="0.2" max="0.8" step="0.05" value="0.5">
+            <span class="control-value" id="maxDistanceValue">0.5</span>
+        </div>
+        
+        <div class="control-group">
+            <label class="control-label">刷新频率(秒)</label>
+            <input type="range" id="refreshRate" min="0.1" max="1" step="0.05" value="0.2">
+            <span class="control-value" id="refreshRateValue">0.2</span>
+        </div>
+        
+        <button class="btn-primary" id="toggleBtn">暂停</button>
+        <button class="btn-secondary" id="resetBtn">重置</button>
+        
+        <div class="status running" id="status">运行中</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let state = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            path: [{ x: canvas.width / 2, y: canvas.height / 2 }],
+            minDistance: 0.1,
+            maxDistance: 0.5,
+            refreshRate: 200,
+            isRunning: true,
+            intervalId: null
+        };
+
+        const minDistanceInput = document.getElementById('minDistance');
+        const maxDistanceInput = document.getElementById('maxDistance');
+        const refreshRateInput = document.getElementById('refreshRate');
+        const minDistanceValue = document.getElementById('minDistanceValue');
+        const maxDistanceValue = document.getElementById('maxDistanceValue');
+        const refreshRateValue = document.getElementById('refreshRateValue');
+        const toggleBtn = document.getElementById('toggleBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusDiv = document.getElementById('status');
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(state.x, state.y, 12, 0, Math.PI * 2);
+            
+            const gradient = ctx.createRadialGradient(state.x - 4, state.y - 4, 0, state.x, state.y, 15);
+            gradient.addColorStop(0, '#ff8888');
+            gradient.addColorStop(0.5, '#ff4444');
+            gradient.addColorStop(1, '#cc0000');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ff4444';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawPath() {
+            if (state.path.length < 2) return;
+            
+            ctx.beginPath();
+            ctx.moveTo(state.path[0].x, state.path[0].y);
+            
+            for (let i = 1; i < state.path.length; i++) {
+                ctx.lineTo(state.path[i].x, state.path[i].y);
+            }
+            
+            ctx.strokeStyle = 'rgba(255, 68, 68, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            drawPath();
+            drawBall();
+        }
+
+        function moveBall() {
+            const directions = [
+                { dx: 0, dy: -1 },
+                { dx: 0, dy: 1 },
+                { dx: -1, dy: 0 },
+                { dx: 1, dy: 0 }
+            ];
+            
+            const randomDir = directions[Math.floor(Math.random() * directions.length)];
+            const distance = state.minDistance + Math.random() * (state.maxDistance - state.minDistance);
+            const scaleFactor = 100;
+            
+            const newX = state.x + randomDir.dx * distance * scaleFactor;
+            const newY = state.y + randomDir.dy * distance * scaleFactor;
+            
+            state.x = Math.max(12, Math.min(canvas.width - 12, newX));
+            state.y = Math.max(12, Math.min(canvas.height - 12, newY));
+            
+            state.path.push({ x: state.x, y: state.y });
+            
+            render();
+        }
+
+        function startGame() {
+            if (state.intervalId) clearInterval(state.intervalId);
+            state.intervalId = setInterval(moveBall, state.refreshRate);
+            state.isRunning = true;
+            toggleBtn.textContent = '暂停';
+            statusDiv.textContent = '运行中';
+            statusDiv.classList.add('running');
+        }
+
+        function stopGame() {
+            if (state.intervalId) {
+                clearInterval(state.intervalId);
+                state.intervalId = null;
+            }
+            state.isRunning = false;
+            toggleBtn.textContent = '开始';
+            statusDiv.textContent = '已暂停';
+            statusDiv.classList.remove('running');
+        }
+
+        function resetGame() {
+            stopGame();
+            state.x = canvas.width / 2;
+            state.y = canvas.height / 2;
+            state.path = [{ x: canvas.width / 2, y: canvas.height / 2 }];
+            render();
+            startGame();
+        }
+
+        function updateMinDistance(value) {
+            state.minDistance = parseFloat(value);
+            minDistanceValue.textContent = value;
+            if (state.isRunning) {
+                stopGame();
+                startGame();
+            }
+        }
+
+        function updateMaxDistance(value) {
+            state.maxDistance = parseFloat(value);
+            maxDistanceValue.textContent = value;
+            if (state.isRunning) {
+                stopGame();
+                startGame();
+            }
+        }
+
+        function updateRefreshRate(value) {
+            state.refreshRate = parseFloat(value) * 1000;
+            refreshRateValue.textContent = value;
+            if (state.isRunning) {
+                stopGame();
+                startGame();
+            }
+        }
+
+        minDistanceInput.addEventListener('input', (e) => updateMinDistance(e.target.value));
+        maxDistanceInput.addEventListener('input', (e) => updateMaxDistance(e.target.value));
+        refreshRateInput.addEventListener('input', (e) => updateRefreshRate(e.target.value));
+
+        toggleBtn.addEventListener('click', () => {
+            if (state.isRunning) {
+                stopGame();
+            } else {
+                startGame();
+            }
+        });
+
+        resetBtn.addEventListener('click', resetGame);
+
+        render();
+        startGame();
+    </script>
+</body>
+</html>
+
