@@ -198,6 +198,27 @@
             margin-top: 2px;
         }
 
+        /* 按钮组：保存 + 重置 */
+        .config-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .config-buttons button {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        .config-save {
+            background: linear-gradient(135deg, #2a6b2a, #1a4a1a) !important;
+        }
+
+        .config-save:hover {
+            background: linear-gradient(135deg, #358035, #205520) !important;
+            box-shadow: 0 2px 8px rgba(60, 160, 60, 0.4) !important;
+        }
+
         /* 重置按钮 */
         .config-reset {
             width: 100%;
@@ -239,6 +260,23 @@
         <div class="config-body" id="configBody">
             <div class="config-row">
                 <label class="config-label">
+                    <span>球的个数</span>
+                </label>
+                <input
+                    type="number"
+                    class="config-input"
+                    id="ballCountInput"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value="1"
+                    placeholder="1 ~ 20"
+                >
+                <div class="config-input-hint">范围 1 ~ 20（与 MoveBall.html 一致: 1）</div>
+            </div>
+
+            <div class="config-row">
+                <label class="config-label">
                     <span>随机移动距离</span>
                 </label>
                 <input
@@ -271,7 +309,10 @@
                 <div class="config-input-hint">范围 0.05 ~ 5.00 秒（与 MoveBall.html 一致: 0.20）</div>
             </div>
 
-            <button class="config-reset" id="resetBtn">↺ 重置还原</button>
+            <div class="config-buttons">
+                <button class="config-reset config-save" id="saveBtn">💾 保存</button>
+                <button class="config-reset" id="resetBtn">↺ 重置还原</button>
+            </div>
         </div>
     </div>
 
@@ -279,17 +320,26 @@
     <button class="config-fab" id="expandFab" title="展开面板">⚙</button>
 
     <script>
-        // 配置参数（与 MoveBall.html 默认值保持一致；可被滑块动态修改）
-        const CONFIG = {
-            minSpeed: 0.020,    // 最小移动速度
-            maxSpeed: 0.020,    // 最大移动速度
-            refreshRate: 200,   // 刷新周期（毫秒）
-            moveDuration: 1     // 每次随机移动持续时间（秒）
+        // 配置参数（与 MoveBall.html 默认值保持一致；可被输入框动态修改）
+        const DEFAULT_CONFIG = {
+            ballCount: 1,        // 球的个数
+            minSpeed: 0.020,     // 最小移动速度
+            maxSpeed: 0.020,     // 最大移动速度
+            refreshRate: 200,    // 刷新周期（毫秒）
+            moveDuration: 1      // 每次随机移动持续时间（秒）
         };
+
+        // 当前生效配置（从 localStorage 或默认值初始化）
+        const CONFIG = { ...DEFAULT_CONFIG };
 
         // 画布尺寸：充满整个窗口（参考 MoveBall.html 的全屏正交相机）
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // 球参数
+        const BALL_RADIUS = 10;
+        const BALL_DIAMETER = BALL_RADIUS * 2;
+        const MIN_BALL_GAP = 4;  // 球之间最小间隔
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -298,49 +348,106 @@
         resizeCanvas();
         window.addEventListener('resize', () => {
             resizeCanvas();
-            // 窗口大小变化时重置球到中心（参考 MoveBall.html）
-            state.x = canvas.width / 2;
-            state.y = canvas.height / 2;
-            state.path = [{ x: state.x, y: state.y }];
-            moveState.currentDir = null;
-            moveState.moveCount = 0;
+            initBalls();
             render();
         });
 
-        let state = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
-            path: [{ x: canvas.width / 2, y: canvas.height / 2 }]
-        };
+        // ============== 多球数据模型 ==============
+        // 每个球：{ x, y, path: [{x,y}] } + 共享的 moveState 数组
+        let balls = [];
+        let moveStates = [];  // 每个球独立的移动方向状态
 
-        // 移动状态：方向持续一段时间后再切换（参考 MoveBall.html 的 currentDirection + moveDuration）
-        let moveState = {
-            currentDir: null,
-            moveCount: 0,
-            maxMoveCount: Math.round(CONFIG.moveDuration * 1000 / CONFIG.refreshRate)  // 5
-        };
+        /**
+         * 初始化多个球：均匀网格分布 + 抖动，确保不重叠
+         */
+        function initBalls() {
+            balls = [];
+            moveStates = [];
+            const n = Math.max(1, Math.min(20, CONFIG.ballCount));
+            const margin = BALL_RADIUS + 4;
 
-        function drawBall() {
+            // 计算网格行列（接近正方形）
+            const cols = Math.ceil(Math.sqrt(n));
+            const rows = Math.ceil(n / cols);
+            const cellW = (canvas.width - margin * 2) / Math.max(1, cols - 1);
+            const cellH = (canvas.height - margin * 2) / Math.max(1, rows - 1);
+
+            for (let i = 0; i < n; i++) {
+                const r = Math.floor(i / cols);
+                const c = i % cols;
+                // 基础位置 + 网格内随机抖动
+                const baseX = margin + c * cellW + (cellW * 0.5 - cellW * 0.5);
+                const baseY = margin + r * cellH;
+
+                // 加一点随机扰动，但通过二次校验避免重叠
+                let x = baseX + (Math.random() - 0.5) * cellW * 0.3;
+                let y = baseY + (Math.random() - 0.5) * cellH * 0.3;
+
+                // 边界保护
+                x = Math.max(margin, Math.min(canvas.width - margin, x));
+                y = Math.max(margin, Math.min(canvas.height - margin, y));
+
+                // 重叠规避：若与已放置的球距离 < 直径+间距，则再次随机偏移
+                let attempts = 0;
+                while (attempts < 50) {
+                    let overlap = false;
+                    for (let j = 0; j < balls.length; j++) {
+                        const dx = x - balls[j].x;
+                        const dy = y - balls[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < BALL_DIAMETER + MIN_BALL_GAP) {
+                            overlap = true;
+                            // 沿远离对方的方向推开
+                            const angle = Math.atan2(dy, dx);
+                            x = balls[j].x + Math.cos(angle) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
+                            y = balls[j].y + Math.sin(angle) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
+                            x = Math.max(margin, Math.min(canvas.width - margin, x));
+                            y = Math.max(margin, Math.min(canvas.height - margin, y));
+                            break;
+                        }
+                    }
+                    if (!overlap) break;
+                    attempts++;
+                }
+
+                balls.push({
+                    x: x,
+                    y: y,
+                    path: [{ x: x, y: y }]
+                });
+
+                moveStates.push({
+                    currentDir: null,
+                    moveCount: 0,
+                    maxMoveCount: Math.round(CONFIG.moveDuration * 1000 / CONFIG.refreshRate)
+                });
+            }
+        }
+
+        // 初始化一次
+        initBalls();
+
+        function drawBall(ball) {
             // 纯色实心球：只填充，不描边
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
 
             ctx.beginPath();
-            ctx.arc(state.x, state.y, 10, 0, Math.PI * 2);
+            ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
             ctx.fillStyle = '#8B0000';
             ctx.fill();
         }
 
-        function drawPath() {
-            if (state.path.length < 2) return;
+        function drawPath(ball) {
+            if (ball.path.length < 2) return;
             
             ctx.shadowBlur = 0;  // 轨迹也不要阴影
             
             ctx.beginPath();
-            ctx.moveTo(state.path[0].x, state.path[0].y);
+            ctx.moveTo(ball.path[0].x, ball.path[0].y);
             
-            for (let i = 1; i < state.path.length; i++) {
-                ctx.lineTo(state.path[i].x, state.path[i].y);
+            for (let i = 1; i < ball.path.length; i++) {
+                ctx.lineTo(ball.path[i].x, ball.path[i].y);
             }
             
             // 清晰轨迹：纯色 + 中等线宽
@@ -355,8 +462,11 @@
             // 完全清屏，确保每一帧画面都清晰锐利
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            drawPath();
-            drawBall();
+            // 依次绘制所有球的轨迹和球体
+            for (let i = 0; i < balls.length; i++) {
+                drawPath(balls[i]);
+                drawBall(balls[i]);
+            }
         }
 
         function generateRandomDirection() {
@@ -370,64 +480,90 @@
             return directions[Math.floor(Math.random() * directions.length)];
         }
 
-        function moveBall() {
-            // 参考 MoveBall.html 的策略：维护一个当前方向，持续一段时间后再随机换方向
-            // 到达时间或到达边界时切换方向（边界反弹 + 重新选方向）
-            
-            const ballRadius = 12;
-            // 速度：与 MoveBall.html 保持一致 (0.020)
-            const speed = CONFIG.minSpeed + Math.random() * (CONFIG.maxSpeed - CONFIG.minSpeed);
-            // 与 MoveBall.html 的缩放一致：屏幕宽度 / 50
+        /**
+         * 移动所有球：每个球独立方向，碰到边界反弹，球与球之间碰撞弹开
+         */
+        function moveBalls() {
             const scaleFactor = canvas.width / 50;
-            
-            // 首次移动或当前方向已用完时，生成新方向
-            if (!moveState.currentDir || moveState.moveCount >= moveState.maxMoveCount) {
-                moveState.currentDir = generateRandomDirection();
-                moveState.moveCount = 0;
+            const margin = BALL_RADIUS;
+
+            for (let i = 0; i < balls.length; i++) {
+                const ball = balls[i];
+                const ms = moveStates[i];
+
+                // 速度：与 MoveBall.html 保持一致 (0.020)
+                const speed = CONFIG.minSpeed + Math.random() * (CONFIG.maxSpeed - CONFIG.minSpeed);
+
+                // 首次移动或当前方向已用完时，生成新方向
+                if (!ms.currentDir || ms.moveCount >= ms.maxMoveCount) {
+                    ms.currentDir = generateRandomDirection();
+                    ms.moveCount = 0;
+                }
+
+                let newX = ball.x + ms.currentDir.dx * speed * scaleFactor;
+                let newY = ball.y + ms.currentDir.dy * speed * scaleFactor;
+
+                // 边界反弹：撞到边界时反转对应方向
+                let bounced = false;
+                if (newX < margin) {
+                    newX = margin;
+                    ms.currentDir.dx = 1;  // 反转为向右
+                    bounced = true;
+                } else if (newX > canvas.width - margin) {
+                    newX = canvas.width - margin;
+                    ms.currentDir.dx = -1;  // 反转为向左
+                    bounced = true;
+                }
+
+                if (newY < margin) {
+                    newY = margin;
+                    ms.currentDir.dy = 1;  // 反转为向下
+                    bounced = true;
+                } else if (newY > canvas.height - margin) {
+                    newY = canvas.height - margin;
+                    ms.currentDir.dy = -1;  // 反转为向上
+                    bounced = true;
+                }
+
+                // 球-球碰撞检测：与所有其他球比较
+                for (let j = 0; j < balls.length; j++) {
+                    if (j === i) continue;
+                    const other = balls[j];
+                    const dx = newX - other.x;
+                    const dy = newY - other.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const minDist = BALL_DIAMETER + MIN_BALL_GAP;
+                    if (dist < minDist && dist > 0) {
+                        // 沿连线方向推开一段距离
+                        const push = (minDist - dist) + 0.5;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        newX += nx * push;
+                        newY += ny * push;
+                        // 边界保护
+                        newX = Math.max(margin, Math.min(canvas.width - margin, newX));
+                        newY = Math.max(margin, Math.min(canvas.height - margin, newY));
+                        bounced = true;
+                    }
+                }
+
+                ball.x = newX;
+                ball.y = newY;
+
+                if (!bounced) {
+                    ms.moveCount++;
+                } else {
+                    ms.moveCount = 0;  // 反弹后重置计数
+                }
+
+                ball.path.push({ x: ball.x, y: ball.y });
+
+                // 限制轨迹长度
+                if (ball.path.length > 2000) {
+                    ball.path.shift();
+                }
             }
-            
-            let newX = state.x + moveState.currentDir.dx * speed * scaleFactor;
-            let newY = state.y + moveState.currentDir.dy * speed * scaleFactor;
-            
-            // 边界反弹：参考 MoveBall.html 的实现，撞到边界时反转对应方向
-            let bounced = false;
-            if (newX < ballRadius) {
-                newX = ballRadius;
-                moveState.currentDir.dx = 1;  // 反转为向右
-                bounced = true;
-            } else if (newX > canvas.width - ballRadius) {
-                newX = canvas.width - ballRadius;
-                moveState.currentDir.dx = -1;  // 反转为向左
-                bounced = true;
-            }
-            
-            if (newY < ballRadius) {
-                newY = ballRadius;
-                moveState.currentDir.dy = 1;  // 反转为向下
-                bounced = true;
-            } else if (newY > canvas.height - ballRadius) {
-                newY = canvas.height - ballRadius;
-                moveState.currentDir.dy = -1;  // 反转为向上
-                bounced = true;
-            }
-            
-            state.x = newX;
-            state.y = newY;
-            
-            // 只有在没发生边界反弹时才增加计数（反弹后立即用新方向）
-            if (!bounced) {
-                moveState.moveCount++;
-            } else {
-                moveState.moveCount = 0;  // 反弹后重置计数
-            }
-            
-            state.path.push({ x: state.x, y: state.y });
-            
-            // 限制轨迹长度，避免性能问题
-            if (state.path.length > 2000) {
-                state.path.shift();
-            }
-            
+
             render();
         }
 
@@ -435,12 +571,14 @@
         let intervalId = null;
         function startLoop() {
             if (intervalId) clearInterval(intervalId);
-            intervalId = setInterval(moveBall, CONFIG.refreshRate);
+            intervalId = setInterval(moveBalls, CONFIG.refreshRate);
         }
 
         // ============== 数字输入框：手输入动态生效 ==============
+        const ballCountInput = document.getElementById('ballCountInput');
         const distanceInput = document.getElementById('distanceInput');
         const refreshInput = document.getElementById('refreshInput');
+        const saveBtn = document.getElementById('saveBtn');
         const resetBtn = document.getElementById('resetBtn');
 
         // 距离参数范围
@@ -449,6 +587,9 @@
         // 刷新频率范围（秒）
         const REFRESH_MIN = 0.05;
         const REFRESH_MAX = 5.00;
+        // 球个数范围
+        const BALL_COUNT_MIN = 1;
+        const BALL_COUNT_MAX = 20;
 
         // 应用距离输入
         function applyDistance(rawValue) {
@@ -461,7 +602,6 @@
             distanceInput.classList.remove('invalid');
             CONFIG.minSpeed = clamped;
             CONFIG.maxSpeed = clamped;
-            // 如果用户输入超出范围，回写一个 clamped 值让用户知道边界
             if (clamped !== v) {
                 distanceInput.value = clamped;
             }
@@ -481,10 +621,39 @@
             if (clamped !== v) {
                 refreshInput.value = clamped.toFixed(2);
             }
-            // 重启 setInterval 让新频率立即生效
             startLoop();
             return true;
         }
+
+        // 应用球个数输入
+        function applyBallCount(rawValue) {
+            const v = parseInt(rawValue, 10);
+            if (isNaN(v)) {
+                ballCountInput.classList.add('invalid');
+                return false;
+            }
+            const clamped = Math.max(BALL_COUNT_MIN, Math.min(BALL_COUNT_MAX, v));
+            ballCountInput.classList.remove('invalid');
+            CONFIG.ballCount = clamped;
+            if (clamped !== v) {
+                ballCountInput.value = clamped;
+            }
+            // 球数变化：重新初始化球的位置（保证不重叠）
+            initBalls();
+            render();
+            return true;
+        }
+
+        // 球个数：回车或失焦时生效
+        ballCountInput.addEventListener('change', (e) => applyBallCount(e.target.value));
+        ballCountInput.addEventListener('blur', (e) => applyBallCount(e.target.value));
+        ballCountInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyBallCount(e.target.value);
+                e.target.blur();
+            }
+        });
 
         // 距离：回车或失焦时生效
         distanceInput.addEventListener('change', (e) => applyDistance(e.target.value));
@@ -508,39 +677,84 @@
             }
         });
 
-        // ============== 重置还原：恢复到 MoveBall.html 默认值 ==============
-        const DEFAULT_DISTANCE = 0.020;
-        const DEFAULT_REFRESH = 0.20;
+        // ============== 保存到 localStorage ==============
+        const STORAGE_KEY = 'randomBallConfig';
 
+        function saveConfig() {
+            // 先让当前输入值生效
+            applyBallCount(ballCountInput.value);
+            applyDistance(distanceInput.value);
+            applyRefresh(refreshInput.value);
+
+            // 保存到 localStorage
+            const toSave = {
+                ballCount: CONFIG.ballCount,
+                minSpeed: CONFIG.minSpeed,
+                maxSpeed: CONFIG.maxSpeed,
+                refreshRate: CONFIG.refreshRate,
+                moveDuration: CONFIG.moveDuration
+            };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+                flashButton(saveBtn, '✓ 已保存', '#2a8b2a');
+            } catch (err) {
+                flashButton(saveBtn, '✗ 保存失败', '#8b0000');
+            }
+        }
+
+        // 按钮反馈：临时改变文字和颜色
+        function flashButton(btn, text, color) {
+            const originalText = btn.textContent;
+            const originalBg = btn.style.background;
+            btn.textContent = text;
+            btn.style.background = color;
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = originalBg;
+            }, 1200);
+        }
+
+        saveBtn.addEventListener('click', saveConfig);
+
+        // ============== 重置还原：清空 localStorage 并刷新页面 ==============
         function resetAll() {
-            // 还原输入框
-            distanceInput.value = DEFAULT_DISTANCE;
-            refreshInput.value = DEFAULT_REFRESH;
-            distanceInput.classList.remove('invalid');
-            refreshInput.classList.remove('invalid');
-
-            // 还原 CONFIG
-            CONFIG.minSpeed = DEFAULT_DISTANCE;
-            CONFIG.maxSpeed = DEFAULT_DISTANCE;
-            CONFIG.refreshRate = Math.round(DEFAULT_REFRESH * 1000);
-
-            // 重置球到中心、轨迹清空
-            state.x = canvas.width / 2;
-            state.y = canvas.height / 2;
-            state.path = [{ x: state.x, y: state.y }];
-            moveState.currentDir = null;
-            moveState.moveCount = 0;
-
-            // 重启循环
-            startLoop();
-            render();
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (err) {
+                // 忽略
+            }
+            // 刷新页面，读取 DEFAULT_CONFIG 重新初始化
+            location.reload();
         }
 
         resetBtn.addEventListener('click', resetAll);
 
+        // ============== 页面加载：从 localStorage 读取配置 ==============
+        function loadConfig() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (typeof data.ballCount === 'number') CONFIG.ballCount = data.ballCount;
+                    if (typeof data.minSpeed === 'number') CONFIG.minSpeed = data.minSpeed;
+                    if (typeof data.maxSpeed === 'number') CONFIG.maxSpeed = data.maxSpeed;
+                    if (typeof data.refreshRate === 'number') CONFIG.refreshRate = data.refreshRate;
+                    if (typeof data.moveDuration === 'number') CONFIG.moveDuration = data.moveDuration;
+                }
+            } catch (err) {
+                // 解析失败则使用默认值
+            }
+        }
+
+        // 初始化：先读 localStorage，再同步到 UI，再初始化球
+        loadConfig();
+        initBalls();
+        ballCountInput.value = CONFIG.ballCount;
+        distanceInput.value = CONFIG.minSpeed;
+        refreshInput.value = (CONFIG.refreshRate / 1000).toFixed(2);
+
         // ============== 面板折叠/展开 ==============
         const configPanel = document.getElementById('configPanel');
-        const configBody = document.getElementById('configBody');
         const collapseBtn = document.getElementById('collapseBtn');
         const expandFab = document.getElementById('expandFab');
 
