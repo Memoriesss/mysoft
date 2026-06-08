@@ -40,47 +40,72 @@
             box-shadow: 0 0 30px rgba(139, 0, 0, 0.15);
         }
 
-        /* 浮动配置面板：暗红主题，半透明 */
+        /* 浮动配置面板：玻璃拟态风格 */
         .config-panel {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(20, 20, 20, 0.85);
-            backdrop-filter: blur(10px);
-            padding: 18px 20px;
-            border-radius: 10px;
-            border: 1px solid rgba(139, 0, 0, 0.6);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            top: 16px;
+            left: 16px;
+            background: rgba(18, 18, 22, 0.72);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            padding: 14px 16px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(139, 0, 0, 0.35);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+                0 1px 0 rgba(255, 255, 255, 0.08) inset;
             z-index: 100;
-            min-width: 260px;
-            color: #ddd;
+            width: 240px;
+            color: #e8e8e8;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 13px;
+            font-size: 12px;
+            transition: width 0.3s ease, padding 0.3s ease, background 0.3s ease;
+        }
+
+        .config-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(139, 0, 0, 0.6), transparent);
+            border-radius: 14px 14px 0 0;
         }
 
         .config-panel-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: #8B0000;
-            margin-bottom: 14px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid rgba(139, 0, 0, 0.3);
-            letter-spacing: 1px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #ff8866;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .config-panel-title .title-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .config-panel-title .icon {
+            font-size: 14px;
+            filter: drop-shadow(0 0 4px rgba(139, 0, 0, 0.6));
         }
 
         /* 折叠/展开按钮 */
         .config-toggle {
-            background: rgba(139, 0, 0, 0.3);
-            border: 1px solid rgba(139, 0, 0, 0.5);
-            color: #cc4444;
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
+            background: rgba(139, 0, 0, 0.25);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            color: #ff8866;
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 700;
             line-height: 1;
             display: flex;
@@ -93,44 +118,45 @@
         .config-toggle:hover {
             background: rgba(139, 0, 0, 0.5);
             color: #fff;
+            transform: scale(1.05);
         }
 
         /* 面板内容（可折叠） */
         .config-body {
             overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
-            max-height: 500px;
+            transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+            max-height: 800px;
             opacity: 1;
         }
 
         .config-panel.collapsed .config-body {
             max-height: 0;
             opacity: 0;
-            margin-top: -14px;
         }
 
         .config-panel.collapsed {
+            width: auto;
             min-width: auto;
+            padding: 8px 12px;
         }
 
         .config-panel.collapsed .config-panel-title {
             margin-bottom: 0;
             padding-bottom: 0;
-            border-bottom: none;
         }
 
-        /* 折叠态的浮动小圆按钮（仅在面板隐藏时显示在角落） */
+        /* 折叠态的浮动小圆按钮：尽量小、少遮挡 */
         .config-fab {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            width: 40px;
-            height: 40px;
+            top: 16px;
+            left: 16px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: linear-gradient(135deg, #8B0000, #550000);
-            border: 1px solid rgba(255, 100, 100, 0.4);
+            border: 1px solid rgba(255, 100, 100, 0.3);
             color: #fff;
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 700;
             cursor: pointer;
             box-shadow: 0 4px 12px rgba(139, 0, 0, 0.4);
@@ -139,6 +165,8 @@
             justify-content: center;
             z-index: 101;
             transition: all 0.2s;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         .config-fab:hover {
@@ -153,8 +181,8 @@
         .config-row {
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            margin-bottom: 14px;
+            gap: 4px;
+            margin-bottom: 10px;
         }
 
         .config-row:last-child {
@@ -162,10 +190,13 @@
         }
 
         .config-label {
+            color: #c8c8c8;
+            font-size: 11px;
+            font-weight: 500;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: 500;
+            letter-spacing: 0.3px;
         }
 
         .config-value {
@@ -174,16 +205,22 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* 复选框：暗红主题 */
+        /* 复选框：玻璃质感 */
         .config-checkbox-row {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 14px;
-            padding: 8px 10px;
-            background: rgba(0, 0, 0, 0.3);
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.25);
             border-radius: 6px;
-            border: 1px solid rgba(139, 0, 0, 0.2);
+            border: 1px solid rgba(139, 0, 0, 0.18);
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .config-checkbox-row:hover {
+            border-color: rgba(139, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.4);
         }
 
         .config-checkbox-row:last-of-type {
@@ -191,62 +228,96 @@
         }
 
         .config-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
             accent-color: #8B0000;
             cursor: pointer;
             margin: 0;
         }
 
         .config-checkbox-label {
-            color: #ddd;
-            font-size: 13px;
+            color: #d8d8d8;
+            font-size: 12px;
             font-weight: 500;
             cursor: pointer;
             user-select: none;
             flex: 1;
         }
+        /* 数字输入框：玻璃质感 */
         .config-input {
             width: 100%;
-            padding: 6px 10px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(139, 0, 0, 0.5);
+            padding: 5px 8px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(139, 0, 0, 0.3);
             border-radius: 6px;
             color: #fff;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             font-family: inherit;
             font-variant-numeric: tabular-nums;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .config-input:hover {
+            border-color: rgba(139, 0, 0, 0.55);
         }
 
         .config-input:focus {
             border-color: #8B0000;
-            box-shadow: 0 0 0 2px rgba(139, 0, 0, 0.3);
+            box-shadow: 0 0 0 2px rgba(139, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.5);
         }
 
         .config-input.invalid {
             border-color: #ff4444;
-            box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.3);
+            box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.25);
         }
 
         .config-input-hint {
-            font-size: 11px;
-            color: #888;
-            margin-top: 2px;
+            font-size: 10px;
+            color: #777;
+            margin-top: 1px;
+            line-height: 1.3;
         }
 
         /* 按钮组：保存 + 重置 */
         .config-buttons {
             display: flex;
-            gap: 8px;
-            margin-top: 6px;
+            gap: 6px;
+            margin-top: 4px;
         }
 
         .config-buttons button {
             flex: 1;
             margin-top: 0;
+        }
+
+        /* 重置/保存按钮：玻璃质感 */
+        .config-reset {
+            width: 100%;
+            margin-top: 0;
+            padding: 7px 8px;
+            background: linear-gradient(135deg, #8B0000, #550000);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .config-reset:hover {
+            background: linear-gradient(135deg, #a30000, #660000);
+            box-shadow: 0 2px 8px rgba(139, 0, 0, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .config-reset:active {
+            transform: translateY(0) scale(0.98);
         }
 
         .config-save {
@@ -256,31 +327,6 @@
         .config-save:hover {
             background: linear-gradient(135deg, #358035, #205520) !important;
             box-shadow: 0 2px 8px rgba(60, 160, 60, 0.4) !important;
-        }
-
-        /* 重置按钮 */
-        .config-reset {
-            width: 100%;
-            margin-top: 6px;
-            padding: 8px 12px;
-            background: linear-gradient(135deg, #8B0000, #550000);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            letter-spacing: 1px;
-        }
-
-        .config-reset:hover {
-            background: linear-gradient(135deg, #a30000, #660000);
-            box-shadow: 0 2px 8px rgba(139, 0, 0, 0.4);
-        }
-
-        .config-reset:active {
-            transform: scale(0.98);
         }
     </style>
 </head>
@@ -292,7 +338,10 @@
     <!-- 浮动配置面板 -->
     <div class="config-panel" id="configPanel">
         <div class="config-panel-title">
-            <span>⚙ 移动参数配置</span>
+            <span class="title-left">
+                <span class="icon">⚙</span>
+                <span>参数配置</span>
+            </span>
             <button class="config-toggle" id="collapseBtn" title="折叠面板">«</button>
         </div>
 
