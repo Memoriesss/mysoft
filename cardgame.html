@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猜卡片游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            min-height: 100%;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #e8e8e8;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* 背景装饰：浮动的暗红光斑 */
+        body::before, body::after {
+            content: '';
+            position: fixed;
+            width: 500px;
+            height: 500px;
+            border-radius: 50%;
+            filter: blur(120px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::before {
+            top: -200px;
+            left: -200px;
+            background: radial-gradient(circle, rgba(139, 0, 0, 0.25), transparent 70%);
+        }
+        body::after {
+            bottom: -200px;
+            right: -200px;
+            background: radial-gradient(circle, rgba(139, 0, 0, 0.15), transparent 70%);
+        }
+
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 880px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: #ccc;
+            text-decoration: none;
+            background: rgba(20, 20, 24, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .back-link:hover {
+            color: #ff8866;
+            border-color: rgba(255, 100, 100, 0.6);
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 3px;
+            background: linear-gradient(135deg, #ff8866 0%, #cc2222 60%, #8B0000 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .stats {
+            display: flex;
+            gap: 12px;
+            font-size: 13px;
+        }
+        .stats .pill {
+            padding: 8px 14px;
+            background: rgba(20, 20, 24, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 10px;
+            color: #ccc;
+            letter-spacing: 1px;
+        }
+        .stats .pill b {
+            color: #ff8866;
+            margin-left: 4px;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(139, 0, 0, 0.2);
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #8B0000, #ff8866);
+            transition: width 0.4s ease;
+        }
+
+        .stage {
+            position: relative;
+            background: rgba(20, 20, 24, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 18px;
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 28px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .stage::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 100, 100, 0.5), transparent);
+        }
+
+        .prompt {
+            font-size: 14px;
+            color: #aaa;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .card {
+            width: 220px;
+            height: 220px;
+            background: linear-gradient(135deg, rgba(139, 0, 0, 0.15), rgba(20, 20, 24, 0.4));
+            border: 2px solid rgba(255, 100, 100, 0.35);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 30px rgba(139, 0, 0, 0.25);
+        }
+        .card svg {
+            width: 130px;
+            height: 130px;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            width: 100%;
+            max-width: 640px;
+        }
+
+        .option {
+            background: rgba(20, 20, 24, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 14px;
+            padding: 18px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .option:hover:not(.disabled) {
+            transform: translateY(-3px);
+            border-color: rgba(255, 100, 100, 0.6);
+            box-shadow: 0 8px 24px rgba(139, 0, 0, 0.3);
+        }
+        .option.disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .option.correct {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.12);
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.4);
+        }
+        .option.wrong {
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.12);
+            box-shadow: 0 0 30px rgba(231, 76, 60, 0.4);
+        }
+        .option svg {
+            width: 64px;
+            height: 64px;
+        }
+        .option-label {
+            font-size: 13px;
+            color: #ccc;
+            letter-spacing: 1px;
+        }
+
+        .feedback {
+            height: 22px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+        .feedback.ok { color: #2ecc71; }
+        .feedback.no { color: #e74c3c; }
+
+        /* 结算面板 */
+        .result {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            padding: 40px 24px;
+        }
+        .result.show { display: flex; }
+
+        .result-title {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, #ff8866 0%, #cc2222 60%, #8B0000 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            width: 100%;
+            max-width: 600px;
+        }
+        .result-cell {
+            background: rgba(20, 20, 24, 0.6);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+        }
+        .result-cell .k {
+            font-size: 12px;
+            color: #888;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .result-cell .v {
+            margin-top: 8px;
+            font-size: 32px;
+            font-weight: 800;
+            color: #ff8866;
+        }
+
+        .rating {
+            font-size: 18px;
+            color: #ff8866;
+            letter-spacing: 3px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 14px;
+            margin-top: 8px;
+        }
+        .btn {
+            padding: 10px 22px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #ff8866;
+            background: rgba(139, 0, 0, 0.15);
+            border: 1px solid rgba(139, 0, 0, 0.5);
+            border-radius: 22px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: rgba(139, 0, 0, 0.3);
+            color: #fff;
+            border-color: #8B0000;
+        }
+
+        @media (max-width: 600px) {
+            .options { grid-template-columns: 1fr; }
+            .result-grid { grid-template-columns: 1fr; }
+            .title { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <div class="top-bar">
+            <a class="back-link" href="index.html">← 返回游戏中心</a>
+            <div class="title">猜卡片游戏</div>
+            <div class="stats">
+                <div class="pill">回合 <b id="roundText">1 / 10</b></div>
+                <div class="pill">得分 <b id="scoreText">0</b></div>
+            </div>
+        </div>
+
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+        <!-- 游戏进行区 -->
+        <section class="stage" id="playStage">
+            <div class="prompt">— 卡片上是哪个形状？—</div>
+            <div class="card" id="card">
+                <!-- 题目形状 SVG 动态注入 -->
+            </div>
+            <div class="options" id="options">
+                <!-- 三个选项动态注入 -->
+            </div>
+            <div class="feedback" id="feedback"></div>
+        </section>
+
+        <!-- 结算区 -->
+        <section class="stage result" id="resultStage">
+            <div class="result-title">挑战结束</div>
+            <div class="rating" id="rating">—</div>
+            <div class="result-grid">
+                <div class="result-cell">
+                    <div class="k">正确数</div>
+                    <div class="v" id="rCorrect">0</div>
+                </div>
+                <div class="result-cell">
+                    <div class="k">总回合</div>
+                    <div class="v" id="rTotal">10</div>
+                </div>
+                <div class="result-cell">
+                    <div class="k">命中率</div>
+                    <div class="v" id="rRate">0%</div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn" id="replayBtn">再来一次</button>
+                <a class="btn" href="index.html">返回主页</a>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 三种形状定义：使用 SVG 字符串渲染
+        const SHAPES = {
+            triangle: {
+                name: '三角形',
+                svg: '<svg viewBox="0 0 100 100" fill="none">' +
+                    '<polygon points="50,12 88,82 12,82" stroke="#ff8866" stroke-width="6" stroke-linejoin="round" fill="rgba(139,0,0,0.15)"/>' +
+                    '</svg>'
+            },
+            circle: {
+                name: '圆圈',
+                svg: '<svg viewBox="0 0 100 100" fill="none">' +
+                    '<circle cx="50" cy="50" r="38" stroke="#ff8866" stroke-width="6" fill="rgba(139,0,0,0.15)"/>' +
+                    '</svg>'
+            },
+            square: {
+                name: '正方形',
+                svg: '<svg viewBox="0 0 100 100" fill="none">' +
+                    '<rect x="14" y="14" width="72" height="72" stroke="#ff8866" stroke-width="6" fill="rgba(139,0,0,0.15)" rx="2"/>' +
+                    '</svg>'
+            }
+        };
+
+        const SHAPE_KEYS = Object.keys(SHAPES); // ['triangle','circle','square']
+        const TOTAL_ROUNDS = 10;
+
+        const state = {
+            round: 1,       // 当前回合（1-based）
+            score: 0,
+            answer: null,   // 当前回合正确答案（shape key）
+            locked: false   // 是否已作答（防止重复点击）
+        };
+
+        const $ = (id) => document.getElementById(id);
+        const cardEl = $('card');
+        const optionsEl = $('options');
+        const feedbackEl = $('feedback');
+        const playStage = $('playStage');
+        const resultStage = $('resultStage');
+        const roundText = $('roundText');
+        const scoreText = $('scoreText');
+        const progressFill = $('progressFill');
+
+        // 工具：打乱数组（Fisher–Yates）
+        function shuffle(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        // 随机选一个形状作为当前回合答案
+        function pickAnswer() {
+            return SHAPE_KEYS[Math.floor(Math.random() * SHAPE_KEYS.length)];
+        }
+
+        // 渲染当前回合
+        function renderRound() {
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'feedback';
+            optionsEl.innerHTML = '';
+            state.locked = false;
+
+            // 1. 选答案
+            state.answer = pickAnswer();
+            // 2. 渲染题目卡
+            cardEl.innerHTML = SHAPES[state.answer].svg;
+            // 3. 生成 3 个选项（打乱后呈现，必含正确答案）
+            const optionKeys = shuffle(SHAPE_KEYS);
+            optionKeys.forEach((key) => {
+                const btn = document.createElement('div');
+                btn.className = 'option';
+                btn.dataset.shape = key;
+                btn.innerHTML = SHAPES[key].svg +
+                    '<div class="option-label">' + SHAPES[key].name + '</div>';
+                btn.addEventListener('click', () => onChoose(btn, key));
+                optionsEl.appendChild(btn);
+            });
+
+            // 4. 更新回合/得分/进度
+            roundText.textContent = state.round + ' / ' + TOTAL_ROUNDS;
+            scoreText.textContent = state.score;
+            progressFill.style.width = ((state.round - 1) / TOTAL_ROUNDS * 100) + '%';
+        }
+
+        // 处理选择
+        function onChoose(btn, key) {
+            if (state.locked) return;
+            state.locked = true;
+
+            // 标记所有按钮为 disabled
+            Array.from(optionsEl.children).forEach((el) => el.classList.add('disabled'));
+
+            const correct = (key === state.answer);
+            if (correct) {
+                btn.classList.add('correct');
+                feedbackEl.textContent = '✓ 正确！';
+                feedbackEl.className = 'feedback ok';
+                state.score += 1;
+                scoreText.textContent = state.score;
+            } else {
+                btn.classList.add('wrong');
+                feedbackEl.textContent = '✗ 错了  正确答案已标绿';
+                feedbackEl.className = 'feedback no';
+                // 标出正确选项
+                const right = optionsEl.querySelector('[data-shape="' + state.answer + '"]');
+                if (right) right.classList.add('correct');
+            }
+
+            // 1.2s 后进入下一回合或结束
+            setTimeout(() => {
+                if (state.round >= TOTAL_ROUNDS) {
+                    showResult();
+                } else {
+                    state.round += 1;
+                    renderRound();
+                }
+            }, 1200);
+        }
+
+        // 结算
+        function showResult() {
+            playStage.style.display = 'none';
+            resultStage.classList.add('show');
+            progressFill.style.width = '100%';
+
+            const correct = state.score;
+            const total = TOTAL_ROUNDS;
+            const rate = Math.round(correct / total * 100);
+
+            $('rCorrect').textContent = correct;
+            $('rTotal').textContent = total;
+            $('rRate').textContent = rate + '%';
+
+            let rating = '继续加油';
+            if (rate >= 90) rating = '★ 神乎其技 ★';
+            else if (rate >= 70) rating = '◆ 表现出色 ◆';
+            else if (rate >= 50) rating = '● 稳步前进 ●';
+            else if (rate >= 30) rating = '▲ 再接再厉 ▲';
+            else rating = '✦ 革命尚未成功 ✦';
+            $('rating').textContent = rating;
+        }
+
+        // 重新开始
+        $('replayBtn').addEventListener('click', () => {
+            state.round = 1;
+            state.score = 0;
+            resultStage.classList.remove('show');
+            playStage.style.display = 'flex';
+            renderRound();
+        });
+
+        // 启动
+        renderRound();
+    </script>
+</body>
+</html>
