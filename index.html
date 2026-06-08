@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>随机球移动游戏</title>
+    <title>随机移动小球</title>
     <style>
         * {
             margin: 0;
@@ -11,218 +11,68 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             background-color: #0a0a0a;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
         }
 
         .game-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            position: relative;
+            width: 100vw;
+            height: 100vh;
         }
 
         #gameCanvas {
-            background-color: #111111;
-            border-radius: 8px;
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.1);
-        }
-
-        .controls {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(20, 20, 20, 0.95);
-            padding: 25px;
-            border-radius: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border: 2px solid #ff4444;
-            box-shadow: 0 8px 32px rgba(255, 68, 68, 0.3);
-            z-index: 1000;
-            min-width: 280px;
-        }
-
-        .controls-header {
-            font-size: 18px;
-            font-weight: 700;
-            color: #fff;
-            text-align: center;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #ff4444;
-            margin-bottom: 10px;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .control-label {
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .control-value {
-            color: #ff4444;
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        input[type="range"] {
-            width: 100%;
-            accent-color: #ff4444;
-            cursor: pointer;
-            height: 8px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        button {
-            flex: 1;
-            padding: 14px 20px;
-            font-size: 14px;
-            font-weight: 700;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #ff4444, #cc0000);
-            color: white;
-            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(255, 0, 0, 0.6);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(135deg, #444, #222);
-            color: white;
-            border: 1px solid #ff4444;
-        }
-
-        .btn-secondary:hover {
-            background: linear-gradient(135deg, #555, #333);
-        }
-
-        .status {
-            text-align: center;
-            padding: 12px;
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #888;
-        }
-
-        .status.running {
-            color: #44ff44;
-            background: rgba(68, 255, 68, 0.1);
-        }
-
-        .hint {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ff4444;
-            font-weight: 600;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 14px;
+            display: block;
+            width: 100vw;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <div class="hint">📌 右侧控制面板可调节参数</div>
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        
-        <div class="controls">
-            <div class="controls-header">⚙️ 游戏控制面板</div>
-            
-            <div class="control-group">
-                <label class="control-label">
-                    最小移动距离
-                    <span class="control-value" id="minDistanceValue">0.1</span>
-                </label>
-                <input type="range" id="minDistance" min="0.1" max="0.4" step="0.05" value="0.1">
-            </div>
-            
-            <div class="control-group">
-                <label class="control-label">
-                    最大移动距离
-                    <span class="control-value" id="maxDistanceValue">0.5</span>
-                </label>
-                <input type="range" id="maxDistance" min="0.2" max="0.8" step="0.05" value="0.5">
-            </div>
-            
-            <div class="control-group">
-                <label class="control-label">
-                    刷新频率(秒)
-                    <span class="control-value" id="refreshRateValue">0.2</span>
-                </label>
-                <input type="range" id="refreshRate" min="0.1" max="1" step="0.05" value="0.2">
-            </div>
-            
-            <div class="button-group">
-                <button class="btn-primary" id="toggleBtn">暂停</button>
-                <button class="btn-secondary" id="resetBtn">重置</button>
-            </div>
-            
-            <div class="status running" id="status">运行中</div>
-        </div>
+        <canvas id="gameCanvas"></canvas>
     </div>
 
     <script>
+        // 配置参数（与 MoveBall.html 保持一致）
+        const CONFIG = {
+            minSpeed: 0.020,    // 最小移动速度
+            maxSpeed: 0.020,    // 最大移动速度
+            refreshRate: 200,   // 刷新周期（毫秒）
+            moveDuration: 1     // 每次随机移动持续时间（秒）
+        };
+
+        // 画布尺寸：充满整个窗口（参考 MoveBall.html 的全屏正交相机）
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            render();
+        });
+
         let state = {
             x: canvas.width / 2,
             y: canvas.height / 2,
-            path: [{ x: canvas.width / 2, y: canvas.height / 2 }],
-            minDistance: 0.1,
-            maxDistance: 0.5,
-            refreshRate: 200,
-            isRunning: true,
-            intervalId: null
+            path: [{ x: canvas.width / 2, y: canvas.height / 2 }]
         };
 
-        const minDistanceInput = document.getElementById('minDistance');
-        const maxDistanceInput = document.getElementById('maxDistance');
-        const refreshRateInput = document.getElementById('refreshRate');
-        const minDistanceValue = document.getElementById('minDistanceValue');
-        const maxDistanceValue = document.getElementById('maxDistanceValue');
-        const refreshRateValue = document.getElementById('refreshRateValue');
-        const toggleBtn = document.getElementById('toggleBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const statusDiv = document.getElementById('status');
+        // 移动状态：方向持续一段时间后再切换（参考 MoveBall.html 的 currentDirection + moveDuration）
+        let moveState = {
+            currentDir: null,
+            moveCount: 0,
+            maxMoveCount: Math.round(CONFIG.moveDuration * 1000 / CONFIG.refreshRate)  // 5
+        };
 
         function drawBall() {
             ctx.beginPath();
@@ -284,13 +134,6 @@
             drawBall();
         }
 
-        // 移动状态：方向持续一段时间后再切换，模拟"漂移"效果
-        let moveState = {
-            currentDir: null,      // 当前方向
-            moveCount: 0,          // 当前方向已移动步数
-            maxMoveCount: 5        // 同一方向最多连续移动多少步（5*0.2s=1s, 参考MoveBall.html的moveDuration=1s）
-        };
-
         function generateRandomDirection() {
             // 从4个标准方向中随机选一个
             const directions = [
@@ -307,8 +150,10 @@
             // 到达时间或到达边界时切换方向（边界反弹 + 重新选方向）
             
             const ballRadius = 12;
-            const distance = state.minDistance + Math.random() * (state.maxDistance - state.minDistance);
-            const scaleFactor = 100;
+            // 速度：与 MoveBall.html 保持一致 (0.020)
+            const speed = CONFIG.minSpeed + Math.random() * (CONFIG.maxSpeed - CONFIG.minSpeed);
+            // 与 MoveBall.html 的缩放一致：屏幕宽度 / 50
+            const scaleFactor = canvas.width / 50;
             
             // 首次移动或当前方向已用完时，生成新方向
             if (!moveState.currentDir || moveState.moveCount >= moveState.maxMoveCount) {
@@ -316,8 +161,8 @@
                 moveState.moveCount = 0;
             }
             
-            let newX = state.x + moveState.currentDir.dx * distance * scaleFactor;
-            let newY = state.y + moveState.currentDir.dy * distance * scaleFactor;
+            let newX = state.x + moveState.currentDir.dx * speed * scaleFactor;
+            let newY = state.y + moveState.currentDir.dy * speed * scaleFactor;
             
             // 边界反弹：参考 MoveBall.html 的实现，撞到边界时反转对应方向
             let bounced = false;
@@ -361,80 +206,9 @@
             render();
         }
 
-        function startGame() {
-            if (state.intervalId) clearInterval(state.intervalId);
-            state.intervalId = setInterval(moveBall, state.refreshRate);
-            state.isRunning = true;
-            toggleBtn.textContent = '暂停';
-            statusDiv.textContent = '运行中';
-            statusDiv.classList.add('running');
-        }
-
-        function stopGame() {
-            if (state.intervalId) {
-                clearInterval(state.intervalId);
-                state.intervalId = null;
-            }
-            state.isRunning = false;
-            toggleBtn.textContent = '开始';
-            statusDiv.textContent = '已暂停';
-            statusDiv.classList.remove('running');
-        }
-
-        function resetGame() {
-            stopGame();
-            state.x = canvas.width / 2;
-            state.y = canvas.height / 2;
-            state.path = [{ x: canvas.width / 2, y: canvas.height / 2 }];
-            moveState.currentDir = null;  // 重置方向，下次移动时重新选
-            moveState.moveCount = 0;
-            render();
-            startGame();
-        }
-
-        function updateMinDistance(value) {
-            state.minDistance = parseFloat(value);
-            minDistanceValue.textContent = value;
-            if (state.isRunning) {
-                stopGame();
-                startGame();
-            }
-        }
-
-        function updateMaxDistance(value) {
-            state.maxDistance = parseFloat(value);
-            maxDistanceValue.textContent = value;
-            if (state.isRunning) {
-                stopGame();
-                startGame();
-            }
-        }
-
-        function updateRefreshRate(value) {
-            state.refreshRate = parseFloat(value) * 1000;
-            refreshRateValue.textContent = value;
-            if (state.isRunning) {
-                stopGame();
-                startGame();
-            }
-        }
-
-        minDistanceInput.addEventListener('input', (e) => updateMinDistance(e.target.value));
-        maxDistanceInput.addEventListener('input', (e) => updateMaxDistance(e.target.value));
-        refreshRateInput.addEventListener('input', (e) => updateRefreshRate(e.target.value));
-
-        toggleBtn.addEventListener('click', () => {
-            if (state.isRunning) {
-                stopGame();
-            } else {
-                startGame();
-            }
-        });
-
-        resetBtn.addEventListener('click', resetGame);
-
+        // 启动游戏（参考 MoveBall.html 的 engine.runRenderLoop）
         render();
-        startGame();
+        setInterval(moveBall, CONFIG.refreshRate);
     </script>
 </body>
 </html>
