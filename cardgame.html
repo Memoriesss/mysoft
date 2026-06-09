@@ -632,8 +632,8 @@
             state.answer = pickAnswer();
             // 2. 形状放入正面（不显示）
             cardFrontEl.innerHTML = SHAPES[state.answer].svg;
-            // 3. 生成 3 个选项（打乱后呈现，必含正确答案）
-            const optionKeys = shuffle(SHAPE_KEYS);
+            // 3. 生成 3 个选项（顺序固定：三角形 → 圆圈 → 正方形）
+            const optionKeys = SHAPE_KEYS;
             optionKeys.forEach((key) => {
                 const btn = document.createElement('div');
                 btn.className = 'option';
