@@ -13,7 +13,8 @@
 
         html, body {
             width: 100%;
-            min-height: 100%;
+            height: 100%;
+            min-height: 100vh;
         }
 
         body {
@@ -23,7 +24,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 24px;
+            justify-content: center;
+            padding: 16px;
             position: relative;
             overflow-x: hidden;
         }
@@ -57,13 +59,15 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 24px;
+            gap: 20px;
         }
 
         .top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .back-link {
@@ -87,7 +91,7 @@
         }
 
         .title {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 800;
             letter-spacing: 3px;
             background: linear-gradient(135deg, #ff8866 0%, #cc2222 60%, #8B0000 100%);
@@ -98,11 +102,12 @@
 
         .stats {
             display: flex;
-            gap: 12px;
-            font-size: 13px;
+            gap: 8px;
+            font-size: 12px;
+            flex-wrap: wrap;
         }
         .stats .pill {
-            padding: 8px 14px;
+            padding: 6px 10px;
             background: rgba(20, 20, 24, 0.7);
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -138,11 +143,11 @@
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             border: 1px solid rgba(139, 0, 0, 0.3);
             border-radius: 18px;
-            padding: 40px 24px;
+            padding: 32px 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 28px;
+            gap: 22px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
         }
 
@@ -162,8 +167,9 @@
         }
 
         .card {
-            width: 220px;
-            height: 220px;
+            width: min(60vw, 220px);
+            height: min(60vw, 220px);
+            aspect-ratio: 1 / 1;
             background: linear-gradient(135deg, rgba(139, 0, 0, 0.15), rgba(20, 20, 24, 0.4));
             border: 2px solid rgba(255, 100, 100, 0.35);
             border-radius: 20px;
@@ -187,7 +193,7 @@
                 rgba(20, 20, 24, 0.2) 10px,
                 rgba(20, 20, 24, 0.2) 20px
             );
-            font-size: 80px;
+            font-size: clamp(48px);
             font-weight: 800;
             color: rgba(255, 136, 102, 0.5);
             letter-spacing: 0;
@@ -199,12 +205,14 @@
             justify-content: center;
             opacity: 0;
             transition: opacity 0.3s ease;
+            width: 100%;
+            height: 100%;
         }
         .card.revealed .back { opacity: 0; }
         .card.revealed .front { opacity: 1; }
         .card svg {
-            width: 130px;
-            height: 130px;
+            width: 60%;
+            height: 60%;
         }
 
         .options {
@@ -221,11 +229,11 @@
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             border: 1px solid rgba(139, 0, 0, 0.3);
             border-radius: 14px;
-            padding: 18px 12px;
+            padding: 14px 8px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             cursor: pointer;
             transition: all 0.2s;
             user-select: none;
@@ -250,11 +258,11 @@
             box-shadow: 0 0 30px rgba(231, 76, 60, 0.4);
         }
         .option svg {
-            width: 64px;
-            height: 64px;
+            width: 48px;
+            height: 48px;
         }
         .option-label {
-            font-size: 13px;
+            font-size: 12px;
             color: #ccc;
             letter-spacing: 1px;
         }
@@ -273,13 +281,13 @@
             display: none;
             flex-direction: column;
             align-items: center;
-            gap: 24px;
-            padding: 40px 24px;
+            gap: 20px;
+            padding: 32px 20px;
         }
         .result.show { display: flex; }
 
         .result-title {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 800;
             letter-spacing: 4px;
             background: linear-gradient(135deg, #ff8866 0%, #cc2222 60%, #8B0000 100%);
@@ -291,7 +299,7 @@
         .result-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
+            gap: 12px;
             width: 100%;
             max-width: 600px;
         }
@@ -299,36 +307,36 @@
             background: rgba(20, 20, 24, 0.6);
             border: 1px solid rgba(139, 0, 0, 0.3);
             border-radius: 14px;
-            padding: 20px;
+            padding: 16px 12px;
             text-align: center;
         }
         .result-cell .k {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
             letter-spacing: 2px;
             text-transform: uppercase;
         }
         .result-cell .v {
-            margin-top: 8px;
-            font-size: 32px;
+            margin-top: 6px;
+            font-size: 28px;
             font-weight: 800;
             color: #ff8866;
         }
 
         .rating {
-            font-size: 18px;
+            font-size: 16px;
             color: #ff8866;
             letter-spacing: 3px;
         }
 
         .actions {
             display: flex;
-            gap: 14px;
-            margin-top: 8px;
+            gap: 12px;
+            margin-top: 6px;
         }
         .btn {
-            padding: 10px 22px;
-            font-size: 13px;
+            padding: 9px 18px;
+            font-size: 12px;
             font-weight: 700;
             letter-spacing: 2px;
             text-transform: uppercase;
@@ -346,10 +354,159 @@
             border-color: #8B0000;
         }
 
-        @media (max-width: 600px) {
-            .options { grid-template-columns: 1fr; }
-            .result-grid { grid-template-columns: 1fr; }
-            .title { font-size: 20px; }
+        /* ========== 移动端响应式 ========== */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                justify-content: flex-start;
+            }
+
+            .page {
+                gap: 16px;
+                padding: 12px;
+                min-height: 100vh;
+            }
+
+            .top-bar {
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .back-link {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .title {
+                font-size: 16px;
+                letter-spacing: 2px;
+            }
+
+            .stats {
+                order: 3;
+                width: 100%;
+                justify-content: space-between;
+                gap: 6px;
+            }
+            .stats .pill {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+                font-size: 11px;
+            }
+
+            .stage {
+                padding: 24px 14px;
+                gap: 18px;
+                border-radius: 14px;
+            }
+
+            .prompt {
+                font-size: 12px;
+                letter-spacing: 3px;
+            }
+
+            .card {
+                width: min(65vw, 260px);
+                height: min(65vw, 260px);
+                border-radius: 16px;
+            }
+            .card svg {
+                width: 55%;
+                height: 55%;
+            }
+
+            .options {
+                gap: 10px;
+            }
+
+            .option {
+                padding: 12px 6px;
+                border-radius: 12px;
+                gap: 6px;
+            }
+            .option svg {
+                width: 40px;
+                height: 40px;
+            }
+            .option-label {
+                font-size: 11px;
+            }
+
+            .feedback {
+                height: 18px;
+                font-size: 12px;
+            }
+
+            .result {
+                padding: 24px 14px;
+                gap: 16px;
+            }
+            .result-title {
+                font-size: 20px;
+                letter-spacing: 3px;
+            }
+            .result-grid {
+                gap: 8px;
+            }
+            .result-cell {
+                padding: 14px 8px;
+                border-radius: 12px;
+            }
+            .result-cell .k {
+                font-size: 10px;
+            }
+            .result-cell .v {
+                font-size: 24px;
+                margin-top: 4px;
+            }
+            .rating {
+                font-size: 14px;
+                letter-spacing: 2px;
+            }
+            .btn {
+                padding: 8px 14px;
+                font-size: 11px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .options {
+                grid-template-columns: 1fr;
+            }
+            .option {
+                flex-direction: row;
+                justify-content: flex-start;
+                padding: 12px 14px;
+                gap: 12px;
+            }
+            .option svg {
+                width: 36px;
+                height: 36px;
+                flex-shrink: 0;
+            }
+            .option-label {
+                font-size: 13px;
+                flex: 1;
+                text-align: left;
+            }
+
+            .result-grid {
+                grid-template-columns: 1fr;
+            }
+            .result-cell {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px 16px;
+            }
+            .result-cell .k {
+                font-size: 11px;
+            }
+            .result-cell .v {
+                margin-top: 0;
+                font-size: 22px;
+            }
         }
     </style>
 </head>

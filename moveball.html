@@ -14,27 +14,33 @@
         html, body {
             width: 100%;
             height: 100%;
+            min-height: 100vh;
             overflow: hidden;
         }
 
         body {
             background-color: #0a0a0a;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
+            padding: 8px;
         }
 
         .game-container {
             display: flex;
             justify-content: center;
             align-items: center;
+            width: 100%;
+            height: 100%;
         }
 
-        /* 固定尺寸的画布：1200x800，不会随窗口拉伸 */
+        /* 固定尺寸的画布：1200x800 逻辑坐标，但 CSS 层按视口等比缩放 */
         #gameCanvas {
             display: block;
-            width: 1200px;
-            height: 800px;
+            width: min(100vw - 16px, 1200px);
+            aspect-ratio: 1200 / 800;
+            max-height: calc(100vh - 16px);
             background-color: #111111;
             border: 1px solid rgba(139, 0, 0, 0.3);
             box-shadow: 0 0 30px rgba(139, 0, 0, 0.15);
@@ -344,6 +350,80 @@
         .config-save:hover {
             background: linear-gradient(135deg, #358035, #205520) !important;
             box-shadow: 0 2px 8px rgba(60, 160, 60, 0.4) !important;
+        }
+
+        /* ========== 移动端响应式 ========== */
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+            }
+
+            #gameCanvas {
+                width: 100vw;
+                height: 100vh;
+                max-height: 100vh;
+                border: none;
+                box-shadow: none;
+            }
+
+            .config-panel {
+                top: 8px;
+                left: 8px;
+                right: 8px;
+                width: auto;
+                max-width: calc(100vw - 16px);
+                padding: 10px 12px 12px;
+                font-size: 11px;
+            }
+
+            .config-panel.collapsed {
+                width: auto;
+                right: auto;
+                max-width: none;
+            }
+
+            .config-panel-title {
+                font-size: 11px;
+                margin-bottom: 10px;
+                padding-bottom: 6px;
+            }
+
+            .config-row {
+                margin-bottom: 8px;
+            }
+
+            .config-label {
+                font-size: 10px;
+            }
+
+            .config-input {
+                font-size: 11px;
+                padding: 4px 7px;
+            }
+
+            .config-step-btn {
+                width: 24px;
+                height: 24px;
+                font-size: 13px;
+            }
+
+            .config-checkbox-row {
+                padding: 5px 7px;
+                margin-bottom: 8px;
+            }
+
+            .config-checkbox-label {
+                font-size: 11px;
+            }
+
+            .config-reset {
+                padding: 6px 7px;
+                font-size: 10px;
+            }
+
+            .config-input-hint {
+                font-size: 9px;
+            }
         }
     </style>
 </head>
