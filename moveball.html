@@ -35,12 +35,9 @@
             height: 100%;
         }
 
-        /* 固定尺寸的画布：1200x800 逻辑坐标，但 CSS 层按视口等比缩放 */
+        /* 固定尺寸的画布：1200x800 逻辑坐标；CSS 显示尺寸由 JS 按视口等比缩放后写入 */
         #gameCanvas {
             display: block;
-            width: min(100vw - 16px, 1200px);
-            aspect-ratio: 1200 / 800;
-            max-height: calc(100vh - 16px);
             background-color: #111111;
             border: 1px solid rgba(139, 0, 0, 0.3);
             box-shadow: 0 0 30px rgba(139, 0, 0, 0.15);
@@ -360,8 +357,9 @@
 
             #gameCanvas {
                 width: 100vw;
-                height: 100vh;
+                height: calc(100vw * 800 / 1200);
                 max-height: 100vh;
+                max-width: calc(100vh * 1200 / 800);
                 border: none;
                 box-shadow: none;
             }
@@ -573,11 +571,30 @@
         // 边界反弹距离：球撞到边框后会被推回"距边框 BOUNCE_DISTANCE"的位置，制造弹性反弹效果
         const BOUNCE_DISTANCE = 30;
 
-        // 初始化画布尺寸（仅执行一次，固定大小）
+        // 初始化画布尺寸（仅执行一次，内部逻辑分辨率固定 1200x800）
         canvas.width = CANVAS_WIDTH;
         canvas.height = CANVAS_HEIGHT;
 
-        // 窗口缩放时不再重设画布尺寸（画布保持固定大小，居中显示）
+        /**
+         * 根据视口大小，按 1200:800 比例计算画布的 CSS 显示尺寸（保持球为正圆）
+         * 取视口可用空间内的最大内接矩形
+         */
+        function fitCanvas() {
+            const padding = 16;
+            const maxW = window.innerWidth - padding;
+            const maxH = window.innerHeight - padding;
+            const ratio = CANVAS_WIDTH / CANVAS_HEIGHT; // 1.5
+            let w = maxW;
+            let h = w / ratio;
+            if (h > maxH) {
+                h = maxH;
+                w = h * ratio;
+            }
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+        }
+        fitCanvas();
+        window.addEventListener('resize', fitCanvas);
 
         // ============== 多球数据模型 ==============
         // 每个球：{ x, y, path: [{x,y}] } + 共享的 moveState 数组
