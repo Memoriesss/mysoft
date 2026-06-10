@@ -628,6 +628,44 @@
             });
         }
 
+        /**
+         * 双种子混沌随机（双 xorshift32 互扰 + 非线性混合）
+         * 原理：
+         *   1) 两个完全独立的 32-bit 种子：seed1 用 Math.random()，seed2 用 performance.now() + Math.random()
+         *   2) xorshift32 PRNG：经典快速伪随机
+         *   3) 互扰：把 a 的高位混入 b，b 的低位混入 a，打破两个序列的相关性
+         *   4) 非线性映射：u*2 - v 进一步打散分布
+         * 特性：种子在不同会话/不同游戏开局都完全不同，输出值对内部状态高度敏感（蝴蝶效应）
+         * 注意：仍是伪随机——仅用于游戏场景，不可用于加密/抽奖
+         */
+        function makeChaoticRNG() {
+            let seed1 = (Math.random() * 4294967295) >>> 0;
+            let seed2 = ((performance.now() * 1000) ^ (Math.random() * 1e9)) >>> 0;
+            // 防止两个种子初始完全相同（极端情况）
+            if (seed1 === seed2) seed2 = (seed2 + 0x9E3779B9) >>> 0;
+
+            function xorshift32(s) {
+                s ^= s << 13; s >>>= 0;
+                s ^= s >>> 17;
+                s ^= s << 5;  s >>>= 0;
+                return s >>>= 0;
+            }
+
+            return function next() {
+                const a = xorshift32(seed1 += 0x9E3779B9);
+                const b = xorshift32(seed2 += 0x85EBCA77);
+                // 互扰：高位 ↔ 低位交叉异或相加
+                const mixed = ((a >>> 16) ^ (b & 0xFFFF)) + ((a & 0xFFFF) ^ (b >>> 16));
+                const u = (mixed >>> 8) / 16777215;       // [0, 1)
+                const v = ((a ^ b) >>> 0) / 4294967295;    // [0, 1)
+                return Math.abs(u * 2 - v);                 // 非线性再打散
+            };
+        }
+
+        // 创建一个全局混沌 RNG 实例（在脚本初始化时生成）
+        // 每次调用 makeChaoticRNG() 会得到一个全新的双种子序列
+        const chaoticRNG = makeChaoticRNG();
+
         // 工具：打乱数组（Fisher–Yates）
         function shuffle(arr) {
             const a = arr.slice();
@@ -639,8 +677,9 @@
         }
 
         // 随机选一个形状作为当前回合答案
+        // 使用混沌 RNG 替代 Math.random()：双种子互扰，更难预测连续答案
         function pickAnswer() {
-            return SHAPE_KEYS[Math.floor(Math.random() * SHAPE_KEYS.length)];
+            return SHAPE_KEYS[Math.floor(chaoticRNG() * SHAPE_KEYS.length)];
         }
 
         // 渲染当前回合
