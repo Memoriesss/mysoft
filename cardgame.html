@@ -625,23 +625,31 @@
             feedbackEl.textContent = '';
             feedbackEl.className = 'feedback';
             optionsEl.innerHTML = '';
-            cardEl.classList.remove('revealed'); // 隐藏正面
+            // 先强制隐藏正面（包括清空 SVG），再用 RAF 切回背面，避免在过渡中透出下一题答案
+            cardEl.classList.remove('revealed');
+            cardFrontEl.innerHTML = '';
             state.locked = false;
 
-            // 1. 选答案
-            state.answer = pickAnswer();
-            // 2. 形状放入正面（不显示）
-            cardFrontEl.innerHTML = SHAPES[state.answer].svg;
-            // 3. 生成 3 个选项（顺序固定：三角形 → 圆圈 → 正方形）
-            const optionKeys = SHAPE_KEYS;
-            optionKeys.forEach((key) => {
-                const btn = document.createElement('div');
-                btn.className = 'option';
-                btn.dataset.shape = key;
-                btn.innerHTML = SHAPES[key].svg +
-                    '<div class="option-label">' + SHAPES[key].name + '</div>';
-                btn.addEventListener('click', () => onChoose(btn, key));
-                optionsEl.appendChild(btn);
+            // 1. 选答案（推迟到下一帧，等背面状态稳定后再写入正面 SVG）
+            const answer = pickAnswer();
+            state.answer = answer;
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    // 2. 形状放入正面（不显示）
+                    cardFrontEl.innerHTML = SHAPES[answer].svg;
+                    // 3. 生成 3 个选项（顺序固定：三角形 → 圆圈 → 正方形）
+                    const optionKeys = SHAPE_KEYS;
+                    optionKeys.forEach((key) => {
+                        const btn = document.createElement('div');
+                        btn.className = 'option';
+                        btn.dataset.shape = key;
+                        btn.innerHTML = SHAPES[key].svg +
+                            '<div class="option-label">' + SHAPES[key].name + '</div>';
+                        btn.addEventListener('click', () => onChoose(btn, key));
+                        optionsEl.appendChild(btn);
+                    });
+                });
             });
 
             // 4. 更新回合/得分/进度
@@ -690,6 +698,10 @@
 
         // 结算
         function showResult() {
+            // 切换前先把大卡片翻回背面（避免结算面板弹出时大卡还停留在最后一题答案状态）
+            cardEl.classList.remove('revealed');
+            cardFrontEl.innerHTML = '';
+
             playStage.style.display = 'none';
             resultStage.classList.add('show');
             progressFill.style.width = '100%';
