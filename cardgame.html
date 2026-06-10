@@ -531,7 +531,7 @@
                 <div class="front" id="cardFront"></div>
             </div>
             <div class="options" id="options">
-                <!-- 三个选项动态注入 -->
+                <!-- 三个固定选项：顺序固定 三角形 → 圆圈 → 正方形，仅在开始时创建一次 -->
             </div>
             <div class="feedback" id="feedback"></div>
         </section>
@@ -605,6 +605,29 @@
         const scoreText = $('scoreText');
         const progressFill = $('progressFill');
 
+        /**
+         * 一次性创建 3 个固定选项（顺序固定：三角形 → 圆圈 → 正方形）
+         * 后续每回合只重置 class（清掉对错/disabled 样式），不重建 DOM、不重绑事件
+         * 点击事件只在初始化时绑定一次
+         */
+        const optionBtns = SHAPE_KEYS.map((key) => {
+            const btn = document.createElement('div');
+            btn.className = 'option';
+            btn.dataset.shape = key;
+            btn.innerHTML = SHAPES[key].svg +
+                '<div class="option-label">' + SHAPES[key].name + '</div>';
+            btn.addEventListener('click', () => onChoose(btn, btn.dataset.shape));
+            optionsEl.appendChild(btn);
+            return btn;
+        });
+
+        // 重置 3 个固定选项到初始态（清样式，不重建 DOM）
+        function resetOptions() {
+            optionBtns.forEach((btn) => {
+                btn.classList.remove('correct', 'wrong', 'disabled');
+            });
+        }
+
         // 工具：打乱数组（Fisher–Yates）
         function shuffle(arr) {
             const a = arr.slice();
@@ -623,12 +646,13 @@
         // 渲染当前回合
         // 设计原则：任何情况下，写入下一题正面 SVG 之前，必须确认卡片"已彻底翻回背面"
         // 实现方式：先 remove('revealed') 触发 0.3s 过渡，正面 opacity 1→0 完成后才清空 + 写新 SVG
+        // 三个选项 DOM 固定不变（初始化时一次性创建），每回合只 resetOptions() 清样式
         let pendingRenderPayload = null; // 等待过渡结束后要写入正面的 SVG
         function renderRound() {
             feedbackEl.textContent = '';
             feedbackEl.className = 'feedback';
-            optionsEl.innerHTML = '';
-            // 立刻清空选项区（不会透出下一题）
+            // 重置 3 个固定选项的状态（清样式，不重建 DOM、不重绑事件）
+            resetOptions();
             state.locked = false;
 
             // 1. 选答案
@@ -643,32 +667,17 @@
             progressFill.style.width = ((state.round - 1) / TOTAL_ROUNDS * 100) + '%';
 
             // 4. 把卡片翻回背面：先确保清空正面内容、移除 revealed
-            //    如果当前已经处于背面（初始或已收起），revealed 类可能没有，正面 DOM 是空的，写 SVG 也是被背面盖住
-            //    如果当前处于揭晓态，触发 0.3s 过渡，frontOpacity 1→0 完成后再写入 SVG
             const cardFront = document.querySelector('.card .front');
             // 先把旧内容清掉，避免在过渡过程中旧答案"透过"半透明正面层被看见
             if (cardFront) cardFront.innerHTML = '';
-            // 重新触发过渡：先强制 reflow，再 remove/re-add 类
-            // 用一个临时占位元素强制触发 transitionend
             cardEl.classList.remove('revealed');
 
-            // 5. 等待"正面彻底隐藏"（opacity 0）后再写入新答案 + 生成选项
+            // 5. 等待"正面彻底隐藏"（opacity 0）后再写入新答案
             //    用 setTimeout 兜底（如果 transitionend 没触发），过渡时长 0.3s
             const onHidden = () => {
                 // 写入新答案 SVG 到正面
                 cardFrontEl.innerHTML = pendingRenderPayload;
                 pendingRenderPayload = null;
-                // 生成 3 个选项（顺序固定：三角形 → 圆圈 → 正方形）
-                const optionKeys = SHAPE_KEYS;
-                optionKeys.forEach((key) => {
-                    const btn = document.createElement('div');
-                    btn.className = 'option';
-                    btn.dataset.shape = key;
-                    btn.innerHTML = SHAPES[key].svg +
-                        '<div class="option-label">' + SHAPES[key].name + '</div>';
-                    btn.addEventListener('click', () => onChoose(btn, key));
-                    optionsEl.appendChild(btn);
-                });
             };
 
             // 监听正面 opacity 过渡完成事件
