@@ -607,6 +607,39 @@
         // 边界反弹距离：球撞到边框后会被推回"距边框 BOUNCE_DISTANCE"的位置，制造弹性反弹效果
         const BOUNCE_DISTANCE = 30;
 
+        /**
+         * 双种子混沌随机（双 xorshift32 互扰 + 非线性混合）
+         * 1) seed1 用 Math.random()，seed2 用 performance.now() + Math.random()，两个独立来源
+         * 2) xorshift32 PRNG：经典快速伪随机
+         * 3) 互扰：高位 ↔ 低位交叉异或相加，打破两个序列相关性
+         * 4) 非线性映射：u*2 - v 进一步打散分布
+         * 特性：种子在不同会话/不同页面都完全不同；对内部状态高度敏感（蝴蝶效应）
+         * 注意：仍是伪随机——仅用于游戏场景，不可用于加密/抽奖
+         */
+        function makeChaoticRNG() {
+            let seed1 = (Math.random() * 4294967295) >>> 0;
+            let seed2 = ((performance.now() * 1000) ^ (Math.random() * 1e9)) >>> 0;
+            if (seed1 === seed2) seed2 = (seed2 + 0x9E3779B9) >>> 0;
+
+            function xorshift32(s) {
+                s ^= s << 13; s >>>= 0;
+                s ^= s >>> 17;
+                s ^= s << 5;  s >>>= 0;
+                return s >>>= 0;
+            }
+
+            return function next() {
+                const a = xorshift32(seed1 += 0x9E3779B9);
+                const b = xorshift32(seed2 += 0x85EBCA77);
+                const mixed = ((a >>> 16) ^ (b & 0xFFFF)) + ((a & 0xFFFF) ^ (b >>> 16));
+                const u = (mixed >>> 8) / 16777215;       // [0, 1)
+                const v = ((a ^ b) >>> 0) / 4294967295;    // [0, 1)
+                return Math.abs(u * 2 - v);
+            };
+        }
+        // 全局混沌 RNG 实例（页面初始化时生成全新双种子序列）
+        const chaoticRNG = makeChaoticRNG();
+
         // 初始化画布尺寸（仅执行一次，内部逻辑分辨率固定 1200x800）
         canvas.width = CANVAS_WIDTH;
         canvas.height = CANVAS_HEIGHT;
@@ -710,8 +743,8 @@
                             overlap = true;
                             // 沿远离对方的方向推开
                             const angle3 = Math.atan2(dy, dx);
-                            x = balls[j].x + Math.cos(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
-                            y = balls[j].y + Math.sin(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + Math.random() * 10);
+                            x = balls[j].x + Math.cos(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + chaoticRNG() * 10);
+                            y = balls[j].y + Math.sin(angle3) * (BALL_DIAMETER + MIN_BALL_GAP + chaoticRNG() * 10);
                             x = Math.max(margin, Math.min(canvas.width - margin, x));
                             y = Math.max(margin, Math.min(canvas.height - margin, y));
                             break;
@@ -794,7 +827,7 @@
                 { dx: -1, dy: 0 },  // 左
                 { dx: 1, dy: 0 }    // 右
             ];
-            return directions[Math.floor(Math.random() * directions.length)];
+            return directions[Math.floor(chaoticRNG() * directions.length)];
         }
 
         /**
@@ -809,7 +842,7 @@
                 const ms = moveStates[i];
 
                 // 速度：与 MoveBall.html 保持一致 (0.020)
-                const speed = CONFIG.minSpeed + Math.random() * (CONFIG.maxSpeed - CONFIG.minSpeed);
+                const speed = CONFIG.minSpeed + chaoticRNG() * (CONFIG.maxSpeed - CONFIG.minSpeed);
 
                 // 首次移动或当前方向已用完时，生成新方向
                 if (!ms.currentDir || ms.moveCount >= ms.maxMoveCount) {
