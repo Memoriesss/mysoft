@@ -124,12 +124,15 @@ export default function ChatPage({ go, onTimeUp }: Props) {
     idleTimerRef.current = window.setTimeout(() => {
       onIdle();
     }, IDLE_MS);
+    console.log("[chat] ⏰ armIdle: %sms 后触发 onIdle, consecutiveIdleRef=%d", IDLE_MS, consecutiveIdleRef.current);
   }
 
   async function onIdle() {
+    console.log("[chat] onIdle 触发, consecutiveIdleRef=%d, isThinking=%s", consecutiveIdleRef.current, isThinking);
     if (isThinking) return;
     // 已经主动问过一次了，没人回就别再问，保持安静
     if (consecutiveIdleRef.current >= 1) {
+      console.log("[chat] ⏸ 已主动问过 1 次且没人回，停止再问");
       return;
     }
     consecutiveIdleRef.current += 1;
@@ -147,6 +150,8 @@ export default function ChatPage({ go, onTimeUp }: Props) {
         pushBot(reply, true);
       } catch (e) {
         console.debug("[chat] idle llm failed", e);
+        // 失败要回滚计数，否则再 armIdle 之后也不能再问
+        consecutiveIdleRef.current -= 1;
       }
     } else if (scriptedDlogRef.current) {
       const result = idlePrompt(scriptedDlogRef.current);
@@ -196,6 +201,7 @@ export default function ChatPage({ go, onTimeUp }: Props) {
     const clean = text.replace(/^["'「」]+|["'「」]+$/g, "").trim();
     setMessages((m) => [...m, { from: "bot", text: clean }]);
     setLastTs(Date.now());
+    console.log("[chat] 🤖 bot:", clean);
     if (convIdRef.current != null) {
       void appendMessage(convIdRef.current, { from: "bot", text: clean, ts: Date.now() });
     }

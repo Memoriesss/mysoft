@@ -88,6 +88,16 @@ export async function chat(
     max_tokens: opts.maxTokens ?? 512,
   };
 
+  // 🔍 调试：打印 LLM 输入
+  console.log("[LLM] → request", {
+    url: `${cfg.baseUrl.replace(/\/$/, "")}/v1/messages`,
+    model: body.model,
+    temperature: body.temperature,
+    max_tokens: body.max_tokens,
+    system: body.system,
+    messages: body.messages,
+  });
+
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/v1/messages`;
   const res = await fetch(url, {
     method: "POST",
@@ -101,6 +111,7 @@ export async function chat(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    console.error("[LLM] ✗ error", res.status, text.slice(0, 300));
     throw new Error(`LLM 请求失败 ${res.status}: ${text.slice(0, 200)}`);
   }
 
@@ -111,6 +122,10 @@ export async function chat(
     .map((b) => b.text)
     .join("\n")
     .trim();
+
+  // 🔍 调试：打印 LLM 输出
+  console.log("[LLM] ← reply", { text, stop_reason: data.stop_reason, raw: data });
+
   return text;
 }
 
