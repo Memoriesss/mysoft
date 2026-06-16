@@ -56,6 +56,8 @@ export default defineConfig({
     sourcemap: 'hidden',
   },
   server: {
+    // 监听所有网卡，让沙箱外能访问
+    host: true,
     // Vite 内置 http-proxy 在沙箱里连不上 minimaxi，所以用手写的 fetch 中间件
     proxy: undefined,
   },
