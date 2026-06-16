@@ -30,8 +30,13 @@ type ApiConfig = {
 
 function readConfig(): ApiConfig {
   const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
+  // dev 模式走 Vite 代理（避免浏览器 CORS），生产模式用 .env 里的真地址
+  const isDev = Boolean((import.meta as unknown as { env: { DEV?: boolean } }).env.DEV);
+  const baseUrl = isDev
+    ? "/llm"
+    : (env.VITE_LLM_BASE_URL ?? "https://api.minimaxi.com/anthropic");
   return {
-    baseUrl: env.VITE_LLM_BASE_URL ?? "https://api.minimaxi.com/anthropic",
+    baseUrl,
     key: env.VITE_LLM_KEY ?? "",
     model: env.VITE_LLM_MODEL ?? "MiniMax-M3",
   };
