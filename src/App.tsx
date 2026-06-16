@@ -85,7 +85,6 @@ export default function App() {
             setRoute({ name: "bye" });
             writeHash({ name: "bye" });
           }}
-          onClear={() => { /* no-op for now */ }}
         />
       )}
 

@@ -3,53 +3,90 @@ import Bubble from "../components/Bubble";
 import ParentPanel from "../components/ParentPanel";
 import { speak, stopSpeak, warmupTts } from "../utils/tts";
 import { useSettings } from "../store/useSettings";
-import { start as dlgStart, reply as dlgReply, idlePrompt } from "../engine/dialogueEngine";
+import { chat, isLlmConfigured, type ChatMessage } from "../utils/llm";
+import { buildSystemPrompt } from "../engine/promptBuilder";
+import { rememberIfWorth } from "../engine/memoryManager";
+import { appendMessage, startConversation } from "../db/memory";
+import { reply as scriptedReply, start as scriptedStart, idlePrompt } from "../engine/dialogueEngine";
 import type { DialogueState } from "../engine/dialogueEngine";
-import type { ReplyOption } from "../engine/topics";
 import { pickStory } from "../engine/stories";
 
 type ChatMsg = { from: "bot" | "kid"; text: string };
-
 type Page = "chat" | "game" | "story";
+
 type Props = {
   go: (p: Page, opts?: { gameId?: string }) => void;
   onTimeUp: () => void;
-  onClear: () => void;
 };
 
-const IDLE_MS = 9000;
+const IDLE_MS = 12000;
+const REMEMBER_AFTER_MS = 60_000; // 静默 1 分钟或对话结束就保存记忆
+const MAX_HISTORY_FOR_LLM = 16; // 每次发 LLM 时携带的最近消息轮数
 
-export default function ChatPage({ go, onTimeUp, onClear }: Props) {
+export default function ChatPage({ go, onTimeUp }: Props) {
   const { ttsEnabled, voiceRate, toggleTts, addUsed, rolloverIfNewDay, dailyLimitMin, usedSeconds, resetUsed } = useSettings();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [options, setOptions] = useState<ReplyOption[] | undefined>(undefined);
-  const [dlg, setDlg] = useState<DialogueState | null>(null);
-  const [showOffer, setShowOffer] = useState<null | "game" | "story">(null);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [showParent, setShowParent] = useState(false);
   const [draft, setDraft] = useState("");
-  const [isThinking, setIsThinking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [receivedPing, setReceivedPing] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
-  const idleTimerRef = useRef<number | null>(null);
-  const isThinkingRef = useRef(false);
+  const [llmOn, setLlmOn] = useState(isLlmConfigured());
+  const [lastTs, setLastTs] = useState<number>(Date.now());
 
-  // 启动时小星主动打招呼
+  const listRef = useRef<HTMLDivElement>(null);
+  const convIdRef = useRef<number | null>(null);
+  const scriptedDlogRef = useRef<DialogueState | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
+  const rememberTimerRef = useRef<number | null>(null);
+
+  /* ---------------- 启动 ---------------- */
   useEffect(() => {
     warmupTts();
-    const { state, result } = dlgStart();
-    setDlg(state);
-    setOptions(result.options);
-    pushBot(result.botText, result.options, false);
+    void initConversation();
+    return () => {
+      // 离开页面时尝试保存记忆
+      void saveMemoryNow();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 时长累计 + 跨天重置
+  async function initConversation() {
+    if (llmOn) {
+      try {
+        convIdRef.current = await startConversation();
+        const sysPrompt = await buildSystemPrompt();
+        const greeting = await chat(
+          [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: "小朋友刚刚打开 App，请你先用 1 句温柔的话打个招呼，并主动抛一个话题（动物/颜色/食物/家庭/情绪/想象里选一个）。" },
+          ],
+          { temperature: 0.85, maxTokens: 80 },
+        );
+        pushBot(greeting || "你好呀！我是小星～", false);
+      } catch (e) {
+        console.error("[chat] init failed", e);
+        // 失败 → 走剧本模式
+        setLlmOn(false);
+        fallbackToScripted();
+      }
+    } else {
+      fallbackToScripted();
+    }
+  }
+
+  function fallbackToScripted() {
+    const { state, result } = scriptedStart();
+    scriptedDlogRef.current = state;
+    pushBot(result.botText, false);
+  }
+
+  /* ---------------- 时长累计 ---------------- */
   useEffect(() => {
     rolloverIfNewDay();
     const id = window.setInterval(() => {
       addUsed(1);
-      // 注意：store 内部同步更新；这里读一次快照判断
       const total = dailyLimitMin * 60;
       if (usedSeconds + 1 >= total) {
         onTimeUp();
@@ -59,21 +96,19 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 自动滚到底
+  /* ---------------- 自动滚动 ---------------- */
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages.length, isThinking]);
 
-  // 沉默主动说话
+  /* ---------------- 沉默主动说话 ---------------- */
   useEffect(() => {
-    if (!dlg) return;
-    if (showOffer) return;
     armIdle();
     return clearIdle;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dlg, showOffer, messages.length]);
+  }, [messages.length]);
 
   function clearIdle() {
     if (idleTimerRef.current !== null) {
@@ -84,75 +119,82 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
   function armIdle() {
     clearIdle();
     idleTimerRef.current = window.setTimeout(() => {
-      if (isThinkingRef.current) return;
-      if (!dlg) return;
-      const result = idlePrompt(dlg);
-      if (result.nextCmd === "game") {
-        setShowOffer("game");
-        pushBot("好呀，我们玩个游戏吧？", undefined);
-      } else if (result.nextCmd === "story") {
-        setShowOffer("story");
-        pushBot("想听小星讲故事吗？", undefined);
-      } else {
-        setDlg({ ...dlg, topicId: result.topicId, nodeId: result.nodeId, turns: 0 });
-        pushBot(result.botText, result.options);
-      }
+      onIdle();
     }, IDLE_MS);
   }
 
-  function kickIdle() {
-    if (dlg) armIdle();
-  }
-
-  function pushBot(text: string, opts?: ReplyOption[], doSpeak: boolean = true) {
-    if (!text) return;
-    setIsThinking(false);
-    isThinkingRef.current = false;
-    setMessages((m) => [...m, { from: "bot", text }]);
-    setOptions(opts);
-    if (doSpeak) {
-      speak(text, { enabled: ttsEnabled, rate: voiceRate });
+  async function onIdle() {
+    if (isThinking) return;
+    if (llmOn) {
+      try {
+        const sysPrompt = await buildSystemPrompt();
+        const reply = await chat(
+          [
+            { role: "system", content: sysPrompt },
+            ...buildHistorySlice(),
+            { role: "user", content: "（小朋友没说话，请你主动挑一个新话题，或者邀请玩个游戏、听个故事。1 句话。）" },
+          ],
+          { temperature: 0.9, maxTokens: 80 },
+        );
+        pushBot(reply, true);
+      } catch (e) {
+        console.debug("[chat] idle llm failed", e);
+      }
+    } else if (scriptedDlogRef.current) {
+      const result = idlePrompt(scriptedDlogRef.current);
+      scriptedDlogRef.current = { ...scriptedDlogRef.current, topicId: result.topicId, nodeId: result.nodeId, turns: 0 };
+      pushBot(result.botText, false);
     }
   }
 
-  function handleUser(text: string) {
-    if (!dlg) return;
-    if (!text.trim()) return;
-    setMessages((m) => [...m, { from: "kid", text }]);
-    setOptions(undefined);
-    setIsThinking(true);
-    isThinkingRef.current = true;
-    showReceivedPing();
-    // 模拟一点思考延迟，让对话更自然
-    window.setTimeout(() => {
-      const { state, result } = dlgReply(dlg, text);
-      setDlg(state);
-      if (result.nextCmd === "game") {
-        setShowOffer("game");
-        pushBot("好呀，小星选了一个好玩的游戏给你～", undefined);
-      } else if (result.nextCmd === "story") {
-        setShowOffer("story");
-        pushBot("竖起耳朵，小星开始讲啦～", undefined);
-      } else if (result.nextCmd === "switch") {
-        setDlg({ ...state, topicId: result.topicId, nodeId: result.nodeId, turns: 0 });
-        pushBot(result.botText, result.options);
-      } else {
-        pushBot(result.botText, result.options);
-      }
-    }, 350);
-    kickIdle();
+  /* ---------------- 记忆保存（静默触发） ---------------- */
+  useEffect(() => {
+    if (!llmOn || convIdRef.current == null) return;
+    if (rememberTimerRef.current !== null) window.clearTimeout(rememberTimerRef.current);
+    rememberTimerRef.current = window.setTimeout(() => {
+      void saveMemoryNow();
+    }, REMEMBER_AFTER_MS);
+    return () => {
+      if (rememberTimerRef.current !== null) window.clearTimeout(rememberTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastTs, messages.length]);
+
+  async function saveMemoryNow() {
+    if (!llmOn || convIdRef.current == null) return;
+    if (messages.length < 2) return;
+    setIsSavingMemory(true);
+    try {
+      await rememberIfWorth(convIdRef.current, messages.map((m) => ({ ...m, ts: Date.now() })));
+    } catch (e) {
+      console.debug("[memory] save failed", e);
+    } finally {
+      setIsSavingMemory(false);
+    }
   }
 
-  function handlePickOption(opt: ReplyOption) {
-    handleUser(`${opt.icon ?? ""} ${opt.label}`.trim());
+  /* ---------------- 工具 ---------------- */
+  function buildHistorySlice(): ChatMessage[] {
+    const slice = messages.slice(-MAX_HISTORY_FOR_LLM);
+    return slice.map((m) => ({
+      role: m.from === "bot" ? "assistant" : "user",
+      content: m.text,
+    }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const t = draft.trim();
-    if (!t) return;
-    setDraft("");
-    handleUser(t);
+  function pushBot(text: string, doSpeak: boolean) {
+    if (!text) return;
+    setIsThinking(false);
+    const clean = text.replace(/^["'「」]+|["'「」]+$/g, "").trim();
+    setMessages((m) => [...m, { from: "bot", text: clean }]);
+    setLastTs(Date.now());
+    if (convIdRef.current != null) {
+      void appendMessage(convIdRef.current, { from: "bot", text: clean, ts: Date.now() });
+    }
+    if (doSpeak) {
+      speak(clean, { enabled: ttsEnabled, rate: voiceRate });
+    }
+    armIdle();
   }
 
   function showReceivedPing() {
@@ -160,43 +202,103 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
     window.setTimeout(() => setReceivedPing(false), 1500);
   }
 
+  /* ---------------- 用户输入 ---------------- */
+  async function handleUser(text: string) {
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { from: "kid", text: text.trim() }]);
+    setLastTs(Date.now());
+    if (convIdRef.current != null) {
+      void appendMessage(convIdRef.current, { from: "kid", text: text.trim(), ts: Date.now() });
+    }
+    showReceivedPing();
+    armIdle();
+    setIsThinking(true);
+
+    if (llmOn) {
+      try {
+        const sysPrompt = await buildSystemPrompt();
+        const reply = await chat(
+          [
+            { role: "system", content: sysPrompt },
+            ...buildHistorySlice(),
+            { role: "user", content: text.trim() },
+          ],
+          { temperature: 0.85, maxTokens: 100 },
+        );
+        pushBot(reply || "嗯嗯～", true);
+      } catch (e) {
+        console.error("[chat] llm failed", e);
+        // 兜底：走剧本
+        fallbackReply(text);
+      }
+    } else {
+      fallbackReply(text);
+    }
+  }
+
+  function fallbackReply(text: string) {
+    if (!scriptedDlogRef.current) {
+      const { state } = scriptedStart();
+      scriptedDlogRef.current = state;
+    }
+    const { state, result } = scriptedReply(scriptedDlogRef.current, text);
+    scriptedDlogRef.current = state;
+    pushBot(result.botText, false);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const t = draft.trim();
+    if (!t) return;
+    setDraft("");
+    void handleUser(t);
+  }
+
   function startVoicePlaceholder() {
     setIsRecording(true);
-    // 占位：1.5s 后假装听到一句"嗯嗯"
     window.setTimeout(() => {
       setIsRecording(false);
-      handleUser("🎤 我说：嗯嗯");
+      void handleUser("🎤 嗯嗯");
     }, 1500);
   }
 
-  function chooseGameOffer(gameId: string) {
-    setShowOffer(null);
-    if (!dlg) return;
-    pushBot("好呀，开始啦！", undefined);
-    window.setTimeout(() => go("game", { gameId }), 400);
-  }
-  function acceptStoryOffer() {
-    setShowOffer(null);
-    if (!dlg) return;
-    const story = pickStory();
-    pushBot("好呀，竖起耳朵听哦～", undefined);
-    window.setTimeout(() => go("story", { gameId: story.id }), 400);
-  }
-  function declineOffer() {
-    setShowOffer(null);
-    pushBot("好呀，那我们就继续聊吧！", undefined);
-    kickIdle();
-  }
+  /* ---------------- 主动指令识别（"玩个游戏" / "听故事"） —— 占位 ---------------- */
+  useEffect(() => {
+    // 未来：识别 LLM 输出里的 "[INVITE:game]" / "[INVITE:story]" 等指令，自动跳转
+    // 当前：用户点标题栏的 🎮 / 📖 按钮手动进入
+  }, [messages, llmOn]);
 
   return (
     <div className="h-full w-full flex flex-col bg-[#FAF7F0]">
-      {/* 顶部细标题栏 */}
+      {/* 顶部 */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5DFD3] bg-white">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#4F6BED]" />
+          <span className={`w-2 h-2 rounded-full ${llmOn ? "bg-[#4F6BED]" : "bg-[#9A9387]"}`} />
           <span className="text-sm font-medium text-[#2D2A26]">童语星球 · 小星</span>
+          {isSavingMemory && (
+            <span className="text-xs text-[#9A9387] animate-kb-fade-in">· 正在记笔记…</span>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => go("game", { gameId: "emoji" })}
+            className="text-xs text-[#6F6A60] hover:text-[#2D2A26]"
+            title="玩个游戏"
+          >
+            🎮 游戏
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const s = pickStory();
+              go("story", { gameId: s.id });
+            }}
+            className="text-xs text-[#6F6A60] hover:text-[#2D2A26]"
+            title="听个故事"
+          >
+            📖 故事
+          </button>
           <button
             type="button"
             onClick={toggleTts}
@@ -231,52 +333,12 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
               </div>
             </div>
           )}
-
-          {/* 主动邀请卡（游戏/故事） */}
-          {showOffer && (
-            <div className="bg-white border border-[#E5DFD3] rounded-2xl p-4 flex flex-col gap-3 max-w-md self-start animate-kb-fade-in">
-              <div className="text-sm text-[#2D2A26]">想玩什么呀？</div>
-              {showOffer === "game" && (
-                <div className="flex flex-col gap-2">
-                  <button type="button" onClick={() => chooseGameOffer("emoji")} className="kb-btn-ghost justify-start">猜动物（我说提示，你猜名字）</button>
-                  <button type="button" onClick={() => chooseGameOffer("color")} className="kb-btn-ghost justify-start">颜色问答（我说颜色，你答物品）</button>
-                  <button type="button" onClick={() => chooseGameOffer("clap")} className="kb-btn-ghost justify-start">数到几（我数数，你猜一共几个）</button>
-                </div>
-              )}
-              {showOffer === "story" && (
-                <div className="flex flex-col gap-2">
-                  <button type="button" onClick={acceptStoryOffer} className="kb-btn-ghost justify-start">好呀，听小星讲故事</button>
-                </div>
-              )}
-              <button type="button" onClick={declineOffer} className="text-xs text-[#6F6A60] hover:text-[#2D2A26] self-start">
-                先不玩，继续聊
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* 候选回复 + 输入区 */}
+      {/* 输入区 */}
       <div className="border-t border-[#E5DFD3] bg-white">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex flex-col gap-2">
-          {/* 候选回复 */}
-          {options && options.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {options.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => handlePickOption(o)}
-                  className="px-3 py-1.5 rounded-full border border-[#E5DFD3] bg-white text-sm text-[#2D2A26] hover:bg-[#F4EFE3] transition-colors"
-                >
-                  {o.icon && <span className="mr-1">{o.icon}</span>}
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* 输入框 + 语音占位 + 发送 */}
+        <div className="max-w-2xl mx-auto px-4 py-3">
           <form onSubmit={handleSubmit} className="flex items-center gap-2 relative">
             <button
               type="button"
@@ -293,14 +355,15 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="跟小星说点什么…"
+                placeholder={llmOn ? "跟小星说点什么…" : "未配置 LLM，使用本地剧本模式"}
                 className="kb-input"
+                disabled={isThinking}
               />
               {receivedPing && (
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#4F6BED] animate-kb-fade-in" />
               )}
             </div>
-            <button type="submit" disabled={!draft.trim()} className="kb-btn">发送</button>
+            <button type="submit" disabled={!draft.trim() || isThinking} className="kb-btn">发送</button>
           </form>
         </div>
       </div>
@@ -312,7 +375,7 @@ export default function ChatPage({ go, onTimeUp, onClear }: Props) {
           stopSpeak();
           setMessages([]);
           resetUsed();
-          onClear();
+          void saveMemoryNow();
         }}
       />
     </div>
