@@ -9,6 +9,8 @@
 //   - system 是独立字段，不在 messages 数组里
 //   - 响应里有 thinking / text 多种 block，要过滤
 
+import { log } from "./debugLog";
+
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -89,6 +91,7 @@ export async function chat(
   };
 
   // 🔍 调试：打印 LLM 输入
+  log("LLM", `→ req: model=${body.model}, t=${body.temperature}, max=${body.max_tokens}, sys="${body.system.slice(0, 60)}…", msgs=${body.messages.length}`);
   console.log("[LLM] → request", {
     url: `${cfg.baseUrl.replace(/\/$/, "")}/v1/messages`,
     model: body.model,
@@ -111,6 +114,7 @@ export async function chat(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    log("LLM", `✗ error ${res.status}: ${text.slice(0, 100)}`);
     console.error("[LLM] ✗ error", res.status, text.slice(0, 300));
     throw new Error(`LLM 请求失败 ${res.status}: ${text.slice(0, 200)}`);
   }
@@ -124,6 +128,7 @@ export async function chat(
     .trim();
 
   // 🔍 调试：打印 LLM 输出
+  log("LLM", `← reply: "${text}"`);
   console.log("[LLM] ← reply", { text, stop_reason: data.stop_reason, raw: data });
 
   return text;

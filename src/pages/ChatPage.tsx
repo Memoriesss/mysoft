@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Bubble from "../components/Bubble";
 import ParentPanel from "../components/ParentPanel";
+import DebugPanel from "../components/DebugPanel";
 import { speak, stopSpeak, warmupTts } from "../utils/tts";
 import { useSettings } from "../store/useSettings";
 import { chat, isLlmConfigured, type ChatMessage } from "../utils/llm";
@@ -10,6 +11,7 @@ import { appendMessage, startConversation } from "../db/memory";
 import { reply as scriptedReply, start as scriptedStart, idlePrompt } from "../engine/dialogueEngine";
 import type { DialogueState } from "../engine/dialogueEngine";
 import { pickStory } from "../engine/stories";
+import { log as dbgLog } from "../utils/debugLog";
 
 type ChatMsg = { from: "bot" | "kid"; text: string };
 type Page = "chat" | "game" | "story";
@@ -29,6 +31,7 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   const [isThinking, setIsThinking] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [showParent, setShowParent] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
   const [draft, setDraft] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [receivedPing, setReceivedPing] = useState(false);
@@ -124,19 +127,18 @@ export default function ChatPage({ go, onTimeUp }: Props) {
     idleTimerRef.current = window.setTimeout(() => {
       onIdle();
     }, IDLE_MS);
-    console.log("[chat] ⏰ armIdle: %sms 后触发 onIdle, consecutiveIdleRef=%d", IDLE_MS, consecutiveIdleRef.current);
+    dbgLog("chat", `⏰ armIdle: ${IDLE_MS}ms 后触发 onIdle, ref=${consecutiveIdleRef.current}`);
   }
 
   async function onIdle() {
-    console.log("[chat] onIdle 触发, consecutiveIdleRef=%d, isThinking=%s, msgCount=%d", consecutiveIdleRef.current, isThinking, messages.length);
+    dbgLog("chat", `onIdle 触发 ref=${consecutiveIdleRef.current} thinking=${isThinking} msgs=${messages.length}`);
     if (isThinking) return;
-    // 只允许主动问一次：ref 计数 ≥ 1 就直接停
     if (consecutiveIdleRef.current >= 1) {
-      console.log("[chat] ⏸ 已主动问过 1 次且没人回，停止再问 (ref=%d)", consecutiveIdleRef.current);
+      dbgLog("chat", `⏸ 已主动问过 1 次且没人回，停止再问 (ref=${consecutiveIdleRef.current})`);
       return;
     }
     consecutiveIdleRef.current += 1;
-    console.log("[chat] ▶ 准备主动提问, ref→%d", consecutiveIdleRef.current);
+    dbgLog("chat", `▶ 准备主动提问, ref→${consecutiveIdleRef.current}`);
     if (llmOn) {
       try {
         const sysPrompt = await buildSystemPrompt();
@@ -202,7 +204,7 @@ export default function ChatPage({ go, onTimeUp }: Props) {
     const clean = text.replace(/^["'「」]+|["'「」]+$/g, "").trim();
     setMessages((m) => [...m, { from: "bot", text: clean }]);
     setLastTs(Date.now());
-    console.log("[chat] 🤖 bot:", clean);
+    dbgLog("chat", `🤖 bot: ${clean}`);
     if (convIdRef.current != null) {
       void appendMessage(convIdRef.current, { from: "bot", text: clean, ts: Date.now() });
     }
@@ -332,6 +334,14 @@ export default function ChatPage({ go, onTimeUp }: Props) {
           >
             家长
           </button>
+          <button
+            type="button"
+            onClick={() => setShowDebug(true)}
+            className="text-xs text-[#6F6A60] hover:text-[#2D2A26]"
+            title="查看运行日志"
+          >
+            🔍
+          </button>
         </div>
       </header>
 
@@ -395,6 +405,7 @@ export default function ChatPage({ go, onTimeUp }: Props) {
           void saveMemoryNow();
         }}
       />
+      <DebugPanel open={showDebug} onClose={() => setShowDebug(false)} />
     </div>
   );
 }
