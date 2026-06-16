@@ -389,14 +389,13 @@
                 height: 100dvh;            /* 动态视口高度，避开浏览器 UI 抖动 */
             }
 
-            /* 画布全屏：铺满整个移动屏幕（除返回按钮占用的右下角） */
+            /* 画布全屏：固定铺满整个移动屏幕（JS 在 fitCanvas 中按 1200:800 比例设置尺寸并居中）
+               关键：CSS 不强制 width/height，避免画布被拉伸成矩形导致球变椭圆 */
             #gameCanvas {
                 position: fixed;
-                inset: 0;                  /* top/right/bottom/left 都为 0 */
-                width: 100vw;
-                height: 100dvh;
-                max-width: none;
-                max-height: none;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
                 border: none;
                 box-shadow: none;
                 z-index: 1;
@@ -678,16 +677,11 @@
          * 取视口可用空间内的最大内接矩形
          */
         function fitCanvas() {
-            // 移动端（<=768px）用 CSS 全屏规则（100vw × 100dvh + position:fixed），不再用 JS 计算
-            if (window.innerWidth <= 768) {
-                canvas.style.width = '100vw';
-                canvas.style.height = '100dvh';
-                return;
-            }
-            // 桌面端：按 1200:800 比例计算视口内的最大内接矩形
-            const padding = 16;
-            const maxW = window.innerWidth - padding;
-            const maxH = window.innerHeight - padding;
+            // 移动端 / 桌面端统一：按 1200:800 比例计算视口内的最大内接矩形，保持球为正圆
+            // 留 8px 边距，避免画布贴边
+            const padding = 8;
+            const maxW = window.innerWidth - padding * 2;
+            const maxH = window.innerHeight - padding * 2;
             const ratio = CANVAS_WIDTH / CANVAS_HEIGHT; // 1.5
             let w = maxW;
             let h = w / ratio;
