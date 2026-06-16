@@ -46,11 +46,20 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   // 连续 idle 计数：用户每发一次消息就清零；onIdle 每触发一次就 +1
   // ≥1 表示已经主动问过一次，没人回就不要再问了
   const consecutiveIdleRef = useRef(0);
+  // 防止 React.StrictMode 在 dev 下把 initConversation 跑两遍（导致双倍问候）
+  const initStartedRef = useRef(false);
 
   /* ---------------- 启动 ---------------- */
   useEffect(() => {
     warmupTts();
-    void initConversation();
+    // 用 ref 锁防止 StrictMode 重复触发
+    if (!initStartedRef.current) {
+      initStartedRef.current = true;
+      dbgLog("chat", "▶ initConversation 启动");
+      void initConversation();
+    } else {
+      dbgLog("chat", "⏭ initConversation 跳过（已启动过）");
+    }
     return () => {
       // 离开页面时尝试保存记忆
       void saveMemoryNow();
