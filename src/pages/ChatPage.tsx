@@ -40,6 +40,9 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   const scriptedDlogRef = useRef<DialogueState | null>(null);
   const idleTimerRef = useRef<number | null>(null);
   const rememberTimerRef = useRef<number | null>(null);
+  // 连续 idle 计数：用户每发一次消息就清零；onIdle 每触发一次就 +1
+  // ≥1 表示已经主动问过一次，没人回就不要再问了
+  const consecutiveIdleRef = useRef(0);
 
   /* ---------------- 启动 ---------------- */
   useEffect(() => {
@@ -125,6 +128,11 @@ export default function ChatPage({ go, onTimeUp }: Props) {
 
   async function onIdle() {
     if (isThinking) return;
+    // 已经主动问过一次了，没人回就别再问，保持安静
+    if (consecutiveIdleRef.current >= 1) {
+      return;
+    }
+    consecutiveIdleRef.current += 1;
     if (llmOn) {
       try {
         const sysPrompt = await buildSystemPrompt();
@@ -205,6 +213,8 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   /* ---------------- 用户输入 ---------------- */
   async function handleUser(text: string) {
     if (!text.trim()) return;
+    // 用户说话了，重置主动提问计数，下一轮允许再主动问一次
+    consecutiveIdleRef.current = 0;
     setMessages((m) => [...m, { from: "kid", text: text.trim() }]);
     setLastTs(Date.now());
     if (convIdRef.current != null) {
