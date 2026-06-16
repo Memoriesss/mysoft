@@ -85,8 +85,10 @@ export default function ChatPage({ go, onTimeUp }: Props) {
     rolloverIfNewDay();
     const id = window.setInterval(() => {
       addUsed(1);
-      const total = dailyLimitMin * 60;
-      if (usedSeconds + 1 >= total) {
+      // 用 getState() 读最新值，避免闭包捕获过期数据
+      const s = useSettings.getState();
+      const total = s.dailyLimitMin * 60;
+      if (s.usedSeconds + 1 >= total) {
         onTimeUp();
       }
     }, 1000);
