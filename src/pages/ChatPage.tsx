@@ -58,10 +58,8 @@ export default function ChatPage({ go, onTimeUp }: Props) {
         convIdRef.current = await startConversation();
         const sysPrompt = await buildSystemPrompt();
         const greeting = await chat(
-          [
-            { role: "system", content: sysPrompt },
-            { role: "user", content: "小朋友刚刚打开 App，请你先用 1 句温柔的话打个招呼，并主动抛一个话题（动物/颜色/食物/家庭/情绪/想象里选一个）。" },
-          ],
+          [{ role: "user", content: "小朋友刚刚打开 App，请你先用 1 句温柔的话打个招呼，并主动抛一个话题（动物/颜色/食物/家庭/情绪/想象里选一个）。" }],
+          sysPrompt,
           { temperature: 0.85, maxTokens: 80 },
         );
         pushBot(greeting || "你好呀！我是小星～", false);
@@ -130,10 +128,10 @@ export default function ChatPage({ go, onTimeUp }: Props) {
         const sysPrompt = await buildSystemPrompt();
         const reply = await chat(
           [
-            { role: "system", content: sysPrompt },
             ...buildHistorySlice(),
             { role: "user", content: "（小朋友没说话，请你主动挑一个新话题，或者邀请玩个游戏、听个故事。1 句话。）" },
           ],
+          sysPrompt,
           { temperature: 0.9, maxTokens: 80 },
         );
         pushBot(reply, true);
@@ -219,10 +217,10 @@ export default function ChatPage({ go, onTimeUp }: Props) {
         const sysPrompt = await buildSystemPrompt();
         const reply = await chat(
           [
-            { role: "system", content: sysPrompt },
             ...buildHistorySlice(),
             { role: "user", content: text.trim() },
           ],
+          sysPrompt,
           { temperature: 0.85, maxTokens: 100 },
         );
         pushBot(reply || "嗯嗯～", true);

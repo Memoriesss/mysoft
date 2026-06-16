@@ -56,9 +56,9 @@ export async function extractMemories(messages: { from: "bot" | "kid"; text: str
 
   const result = await chatJson<Partial<ExtractResult>>(
     [
-      { role: "system", content: EXTRACT_SYS },
       { role: "user", content: `请从下面这段对话提取记忆：\n\n${transcript}` },
     ],
+    EXTRACT_SYS,
     { temperature: 0.3, maxTokens: 600 },
   );
 
