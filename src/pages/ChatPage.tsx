@@ -142,12 +142,24 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   async function onIdle() {
     dbgLog("chat", `onIdle 触发 ref=${consecutiveIdleRef.current} thinking=${isThinking} msgs=${messages.length}`);
     if (isThinking) return;
-    if (consecutiveIdleRef.current >= 1) {
-      dbgLog("chat", `⏸ 已主动问过 1 次且没人回，停止再问 (ref=${consecutiveIdleRef.current})`);
-      return;
+
+    // 区分"提问"和"陈述/讲故事"：
+    //   - 问句（结尾 ？或?）：期望用户回答；用户没回就只追问 1 次
+    //   - 陈述/故事（没问号）：不期望回答；下次可以继续讲
+    const lastBot = [...messages].reverse().find((m) => m.from === "bot");
+    const lastIsQuestion = !!lastBot && /[？?]\s*$/.test(lastBot.text);
+
+    if (lastIsQuestion) {
+      if (consecutiveIdleRef.current >= 1) {
+        dbgLog("chat", `⏸ 上一条是问句且已追问过 1 次，停止 (ref=${consecutiveIdleRef.current})`);
+        return;
+      }
+      consecutiveIdleRef.current += 1;
+      dbgLog("chat", `▶ 上条是问句，准备追问, ref→${consecutiveIdleRef.current}`);
+    } else {
+      dbgLog("chat", `▶ 上条是陈述/故事，不计数，继续让 LLM 讲`);
     }
-    consecutiveIdleRef.current += 1;
-    dbgLog("chat", `▶ 准备主动提问, ref→${consecutiveIdleRef.current}`);
+
     if (llmOn) {
       try {
         const sysPrompt = await buildSystemPrompt();
