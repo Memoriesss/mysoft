@@ -4,7 +4,7 @@ AI 主动陪聊应用，目标用户 4 岁左右儿童。最终形态为**纯语
 
 ## ✨ 特性
 
-- **阶跃星辰 Step-2 大脑**（OpenAI 兼容 API，可切换）
+- **MiniMax-M3 大脑**（OpenAI 兼容 API，可切换）
 - **三层长期记忆**（IndexedDB 本地存储，零上传）
   - 画像：名字、年龄、家庭、喜好（永久）
   - 事实：偏好/事件/关键信息（带标签去重）
@@ -65,12 +65,10 @@ src/
 只要是 OpenAI `/v1/chat/completions` 协议的都能用，`.env` 里换 base URL + key 即可：
 
 ```bash
-VITE_LLM_BASE_URL=https://api.stepfun.com/v1
+VITE_LLM_BASE_URL=https://api.MiniMax.chat/v1
 VITE_LLM_KEY=sk-xxx
-VITE_LLM_MODEL=step-2-16k
+VITE_LLM_MODEL=MiniMax-M3
 ```
-
-Step-2 申请：https://platform.stepfun.com/ → 控制台 → API Keys。
 
 ## 🎮 文字小游戏
 

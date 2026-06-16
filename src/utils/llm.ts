@@ -24,9 +24,9 @@ type ApiConfig = {
 function readConfig(): ApiConfig {
   const env = (import.meta as unknown as { env: Record<string, string | undefined> }).env;
   return {
-    baseUrl: env.VITE_LLM_BASE_URL ?? "https://api.stepfun.com/v1",
+    baseUrl: env.VITE_LLM_BASE_URL ?? "https://api.MiniMax.chat/v1",
     key: env.VITE_LLM_KEY ?? "",
-    model: env.VITE_LLM_MODEL ?? "step-2-16k",
+    model: env.VITE_LLM_MODEL ?? "MiniMax-M3",
   };
 }
 
