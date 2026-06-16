@@ -24,7 +24,7 @@ const REMEMBER_AFTER_MS = 60_000; // 静默 1 分钟或对话结束就保存记�
 const MAX_HISTORY_FOR_LLM = 16; // 每次发 LLM 时携带的最近消息轮数
 
 export default function ChatPage({ go, onTimeUp }: Props) {
-  const { ttsEnabled, voiceRate, toggleTts, addUsed, rolloverIfNewDay, dailyLimitMin, usedSeconds, resetUsed } = useSettings();
+  const { ttsEnabled, voiceRate, toggleTts, addUsed, rolloverIfNewDay, resetUsed } = useSettings();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
