@@ -128,14 +128,15 @@ export default function ChatPage({ go, onTimeUp }: Props) {
   }
 
   async function onIdle() {
-    console.log("[chat] onIdle 触发, consecutiveIdleRef=%d, isThinking=%s", consecutiveIdleRef.current, isThinking);
+    console.log("[chat] onIdle 触发, consecutiveIdleRef=%d, isThinking=%s, msgCount=%d", consecutiveIdleRef.current, isThinking, messages.length);
     if (isThinking) return;
-    // 已经主动问过一次了，没人回就别再问，保持安静
+    // 只允许主动问一次：ref 计数 ≥ 1 就直接停
     if (consecutiveIdleRef.current >= 1) {
-      console.log("[chat] ⏸ 已主动问过 1 次且没人回，停止再问");
+      console.log("[chat] ⏸ 已主动问过 1 次且没人回，停止再问 (ref=%d)", consecutiveIdleRef.current);
       return;
     }
     consecutiveIdleRef.current += 1;
+    console.log("[chat] ▶ 准备主动提问, ref→%d", consecutiveIdleRef.current);
     if (llmOn) {
       try {
         const sysPrompt = await buildSystemPrompt();
