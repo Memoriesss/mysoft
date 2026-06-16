@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-from: #FFE9A8;
+    --bg-via: #FFD6E0;
+    --bg-to: #C7E9F1;
+    --text-main: #5B3A29;
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.55;
+    font-weight: 500;
+    color: var(--text-main);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(60% 40% at 20% 10%, rgba(255, 255, 255, 0.55), transparent 60%),
+      radial-gradient(50% 40% at 80% 0%, rgba(255, 224, 224, 0.6), transparent 65%),
+      radial-gradient(80% 60% at 50% 100%, rgba(199, 233, 241, 0.6), transparent 70%),
+      linear-gradient(135deg, var(--bg-from), var(--bg-via) 50%, var(--bg-to));
+    background-size: 200% 200%;
+    animation: bgShift 22s ease infinite;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+@layer components {
+  .kid-card {
+    @apply bg-paper rounded-chunk shadow-chunky border-4 border-cocoa/10;
+  }
+
+  .kid-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-chunk
+      px-5 py-3 font-display text-2xl text-cocoa
+      bg-strawberry text-white shadow-pill
+      border-4 border-cocoa/15
+      transition-transform duration-150
+      hover:-translate-y-0.5 hover:shadow-soft
+      active:translate-y-1 active:shadow-pill;
+  }
+
+  .kid-btn-mint {
+    @apply bg-mint text-cocoa;
+  }
+
+  .kid-btn-lavender {
+    @apply bg-lavender text-white;
+  }
+
+  .kid-btn-sun {
+    @apply bg-lemon text-cocoa;
+  }
+
+  .kid-btn-sky {
+    @apply bg-sky text-cocoa;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-sm font-bold text-cocoa shadow-pill border-2 border-cocoa/10;
+  }
+
+  .chat-bubble {
+    @apply max-w-[78%] rounded-bubble px-4 py-3 font-body text-lg leading-snug shadow-soft border-2 border-cocoa/10;
+  }
+
+  .chat-bubble-bot {
+    @apply bg-white text-cocoa rounded-bl-md;
+  }
+
+  .chat-bubble-kid {
+    @apply bg-strawberry text-white rounded-br-md;
+  }
+}
