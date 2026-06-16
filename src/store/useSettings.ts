@@ -6,16 +6,14 @@ export type LimitMin = 5 | 10 | 15 | 20 | 30;
 type SettingsState = {
   dailyLimitMin: LimitMin;
   usedSeconds: number; // 今日累计（秒）
-  quietMode: boolean;
-  voiceName?: string;
+  ttsEnabled: boolean; // TTS 语音开关
   voiceRate: number; // 0.7-1.3
   lastResetDate: string;
   // actions
   setLimit: (m: LimitMin) => void;
-  toggleQuiet: () => void;
+  toggleTts: () => void;
   addUsed: (sec: number) => void;
   resetUsed: () => void;
-  setVoice: (name?: string) => void;
   setVoiceRate: (r: number) => void;
   rolloverIfNewDay: () => void;
 };
@@ -29,15 +27,13 @@ export const useSettings = create<SettingsState>()(
     (set, get) => ({
       dailyLimitMin: 15,
       usedSeconds: 0,
-      quietMode: false,
-      voiceName: undefined,
-      voiceRate: 0.92,
+      ttsEnabled: true,
+      voiceRate: 0.95,
       lastResetDate: todayStr(),
       setLimit: (m) => set({ dailyLimitMin: m }),
-      toggleQuiet: () => set((s) => ({ quietMode: !s.quietMode })),
+      toggleTts: () => set((s) => ({ ttsEnabled: !s.ttsEnabled })),
       addUsed: (sec) => set((s) => ({ usedSeconds: s.usedSeconds + sec })),
       resetUsed: () => set({ usedSeconds: 0, lastResetDate: todayStr() }),
-      setVoice: (name) => set({ voiceName: name }),
       setVoiceRate: (r) => set({ voiceRate: Math.max(0.7, Math.min(1.3, r)) }),
       rolloverIfNewDay: () => {
         const t = todayStr();
@@ -48,7 +44,22 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: "kidbot:settings",
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        // v1 -> v2: 重命名 quietMode 为 ttsEnabled (取反)
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 2) {
+          return {
+            ...p,
+            ttsEnabled: p.quietMode === undefined ? true : !p.quietMode,
+            voiceRate: p.voiceRate ?? 0.95,
+            dailyLimitMin: p.dailyLimitMin ?? 15,
+            usedSeconds: 0,
+            lastResetDate: todayStr(),
+          };
+        }
+        return p;
+      },
     },
   ),
 );

@@ -4,14 +4,18 @@
 
 @layer base {
   :root {
-    --bg-from: #FFE9A8;
-    --bg-via: #FFD6E0;
-    --bg-to: #C7E9F1;
-    --text-main: #5B3A29;
-    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-    line-height: 1.55;
-    font-weight: 500;
-    color: var(--text-main);
+    --bg: #FAF7F0;
+    --text: #2D2A26;
+    --muted: #6F6A60;
+    --border: #E5DFD3;
+    --accent: #4F6BED;
+    --accent-soft: #EEF1FD;
+    --bot-bubble: #FFFFFF;
+    --kid-bubble: #4F6BED;
+    font-family: "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    font-weight: 400;
+    color: var(--text);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -22,14 +26,8 @@
   }
 
   body {
+    background: var(--bg);
     overflow: hidden;
-    background:
-      radial-gradient(60% 40% at 20% 10%, rgba(255, 255, 255, 0.55), transparent 60%),
-      radial-gradient(50% 40% at 80% 0%, rgba(255, 224, 224, 0.6), transparent 65%),
-      radial-gradient(80% 60% at 50% 100%, rgba(199, 233, 241, 0.6), transparent 70%),
-      linear-gradient(135deg, var(--bg-from), var(--bg-via) 50%, var(--bg-to));
-    background-size: 200% 200%;
-    animation: bgShift 22s ease infinite;
   }
 
   button {
@@ -37,56 +35,69 @@
     cursor: pointer;
   }
 
+  input, textarea {
+    font-family: inherit;
+  }
+
   *::-webkit-scrollbar {
-    width: 0;
-    height: 0;
+    width: 6px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #D6D0C2;
+    border-radius: 4px;
   }
 }
 
 @layer components {
-  .kid-card {
-    @apply bg-paper rounded-chunk shadow-chunky border-4 border-cocoa/10;
+  .kb-bubble-bot {
+    @apply bg-white border border-[#E5DFD3] text-[#2D2A26] rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[78%] text-[17px] leading-relaxed shadow-none;
   }
 
-  .kid-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-chunk
-      px-5 py-3 font-display text-2xl text-cocoa
-      bg-strawberry text-white shadow-pill
-      border-4 border-cocoa/15
-      transition-transform duration-150
-      hover:-translate-y-0.5 hover:shadow-soft
-      active:translate-y-1 active:shadow-pill;
+  .kb-bubble-kid {
+    @apply bg-[#4F6BED] text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[78%] text-[17px] leading-relaxed;
   }
 
-  .kid-btn-mint {
-    @apply bg-mint text-cocoa;
+  .kb-btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-[15px] font-medium
+      bg-[#4F6BED] text-white border border-[#4F6BED]
+      hover:bg-[#3F5BD9] active:bg-[#3450C2] disabled:opacity-40 disabled:cursor-not-allowed
+      transition-colors;
   }
 
-  .kid-btn-lavender {
-    @apply bg-lavender text-white;
+  .kb-btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-[15px] font-medium
+      bg-transparent text-[#4F6BED] border border-[#4F6BED]
+      hover:bg-[#EEF1FD] disabled:opacity-40 disabled:cursor-not-allowed
+      transition-colors;
   }
 
-  .kid-btn-sun {
-    @apply bg-lemon text-cocoa;
+  .kb-input {
+    @apply flex-1 rounded-lg border border-[#E5DFD3] bg-white px-3.5 py-2.5 text-[16px]
+      text-[#2D2A26] placeholder:text-[#9A9387]
+      focus:outline-none focus:border-[#4F6BED] focus:ring-2 focus:ring-[#4F6BED]/20;
   }
+}
 
-  .kid-btn-sky {
-    @apply bg-sky text-cocoa;
+@layer utilities {
+  @keyframes kb-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
-
-  .pill {
-    @apply inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 text-sm font-bold text-cocoa shadow-pill border-2 border-cocoa/10;
+  .animate-kb-fade-in {
+    animation: kb-fade-in 0.2s ease-out;
   }
-
-  .chat-bubble {
-    @apply max-w-[78%] rounded-bubble px-4 py-3 font-body text-lg leading-snug shadow-soft border-2 border-cocoa/10;
+  @keyframes kb-blink {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
   }
-
-  .chat-bubble-bot {
-    @apply bg-white text-cocoa rounded-bl-md;
+  .animate-kb-blink {
+    animation: kb-blink 1.2s ease-in-out infinite;
   }
-
-  .chat-bubble-kid {
-    @apply bg-strawberry text-white rounded-br-md;
+  @keyframes kb-typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.3; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+  .animate-kb-typing {
+    animation: kb-typing 1.2s ease-in-out infinite;
   }
 }

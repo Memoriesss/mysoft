@@ -1,28 +1,25 @@
-// emoji 猜猜乐
+// 猜动物 — 纯文字问答游戏
+// 机器人用文字描述一种动物，小朋友从 3 个文字选项里选
+// 完全无视觉依赖，未来切到纯语音零改动
+
 import { useEffect, useMemo, useState } from "react";
 import { speak } from "../utils/tts";
 import { useSettings } from "../store/useSettings";
 
-type Round = {
-  emoji: string;
-  word: string;
-  hint: string;
-  options: { emoji: string; word: string }[];
-};
-
-const POOL: { emoji: string; word: string; hint: string }[] = [
-  { emoji: "🐶", word: "小狗", hint: "汪汪汪，尾巴摇一摇" },
-  { emoji: "🐱", word: "小猫", hint: "喵喵喵，爱抓老鼠" },
-  { emoji: "🐰", word: "小兔子", hint: "耳朵长，爱吃萝卜" },
-  { emoji: "🐻", word: "小熊", hint: "爱吃蜂蜜，胖乎乎" },
-  { emoji: "🐼", word: "熊猫", hint: "黑眼圈，爱吃竹子" },
-  { emoji: "🦊", word: "小狐狸", hint: "尖尖的耳朵，大尾巴" },
-  { emoji: "🐯", word: "小老虎", hint: "森林之王，嗷呜" },
-  { emoji: "🦁", word: "狮子", hint: "头发蓬蓬，吼声大" },
-  { emoji: "🐮", word: "奶牛", hint: "给我们牛奶喝" },
-  { emoji: "🐷", word: "小猪", hint: "哼哼哼，鼻子圆" },
-  { emoji: "🐸", word: "青蛙", hint: "跳得高，呱呱呱" },
-  { emoji: "🐵", word: "小猴子", hint: "爱吃香蕉，挠痒痒" },
+type Animal = { name: string; hint: string };
+const POOL: Animal[] = [
+  { name: "小狗", hint: "汪汪汪叫，尾巴会摇一摇" },
+  { name: "小猫", hint: "喵喵喵叫，喜欢抓老鼠" },
+  { name: "小兔子", hint: "耳朵长长的，爱吃萝卜" },
+  { name: "小熊", hint: "胖乎乎的，爱吃蜂蜜" },
+  { name: "熊猫", hint: "黑眼圈，爱吃竹子" },
+  { name: "小狐狸", hint: "尖尖耳朵，大尾巴" },
+  { name: "小老虎", hint: "森林之王，会嗷呜" },
+  { name: "小猴子", hint: "爱吃香蕉，会挠痒痒" },
+  { name: "小猪", hint: "哼哼哼，鼻子圆圆的" },
+  { name: "小青蛙", hint: "跳得高，呱呱呱叫" },
+  { name: "大象", hint: "鼻子长长的，能吸水" },
+  { name: "长颈鹿", hint: "脖子长长的，吃树叶" },
 ];
 
 function shuffle<T>(arr: T[]): T[] {
@@ -34,20 +31,21 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+type Round = { target: Animal; options: Animal[] };
+
 function buildRounds(count: number): Round[] {
-  const items = shuffle(POOL).slice(0, count);
-  return items.map((it) => {
-    const distractors = shuffle(POOL.filter((p) => p.emoji !== it.emoji)).slice(0, 2);
-    const options = shuffle([it, ...distractors]).map((p) => ({ emoji: p.emoji, word: p.word }));
-    return { emoji: it.emoji, word: it.word, hint: it.hint, options };
+  return shuffle(POOL).slice(0, count).map((it) => {
+    const distractors = shuffle(POOL.filter((p) => p.name !== it.name)).slice(0, 2);
+    const options = shuffle([it, ...distractors]);
+    return { target: it, options };
   });
 }
 
 type Props = { onExit: () => void };
 
 export default function EmojiGuess({ onExit }: Props) {
-  const { quietMode } = useSettings();
-  const rounds = useMemo(() => buildRounds(6), []);
+  const { ttsEnabled, voiceRate } = useSettings();
+  const rounds = useMemo(() => buildRounds(5), []);
   const [idx, setIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [score, setScore] = useState(0);
@@ -58,19 +56,19 @@ export default function EmojiGuess({ onExit }: Props) {
   useEffect(() => {
     if (done) return;
     const t = setTimeout(() => {
-      speak(`第 ${idx + 1} 关！${round.hint}，猜一猜是哪个？`, { muted: quietMode, rate: 0.9 });
-    }, 250);
+      speak(`猜一猜这是什么小动物？${round.target.hint}`, { enabled: ttsEnabled, rate: voiceRate });
+    }, 200);
     return () => clearTimeout(t);
-  }, [idx, done, quietMode, round]);
+  }, [idx, done, ttsEnabled, voiceRate, round]);
 
-  const onPick = (emoji: string) => {
+  const onPick = (name: string) => {
     if (picked) return;
-    setPicked(emoji);
-    if (emoji === round.emoji) {
+    setPicked(name);
+    if (name === round.target.name) {
       setScore((s) => s + 1);
-      speak("太棒啦！答对啦！", { muted: quietMode, rate: 1 });
+      speak(`答对啦！就是${round.target.name}。`, { enabled: ttsEnabled, rate: voiceRate });
     } else {
-      speak(`差一点点！是 ${round.word} 哦。`, { muted: quietMode, rate: 1 });
+      speak(`差一点点哦，是${round.target.name}。`, { enabled: ttsEnabled, rate: voiceRate });
     }
     setTimeout(() => {
       if (idx + 1 < rounds.length) {
@@ -78,58 +76,64 @@ export default function EmojiGuess({ onExit }: Props) {
         setPicked(null);
       } else {
         setDone(true);
-        speak(`哇，全部玩完啦！你答对了 ${score + (emoji === round.emoji ? 1 : 0)} 题，好厉害！`, { muted: quietMode, rate: 1 });
       }
-    }, 1500);
+    }, 1400);
   };
 
   if (done) {
     return (
-      <GameDone score={score} total={rounds.length} onAgain={() => { setIdx(0); setScore(0); setPicked(null); setDone(false); }} onExit={onExit} />
+      <div className="h-full w-full flex flex-col items-center justify-center gap-5 px-4">
+        <div className="text-xl font-semibold text-[#2D2A26]">猜动物结束啦！</div>
+        <div className="text-base text-[#6F6A60]">你答对了 {score} / {rounds.length} 题</div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setIdx(0); setScore(0); setPicked(null); setDone(false); }}
+            className="kb-btn-ghost"
+          >
+            再来一局
+          </button>
+          <button type="button" onClick={onExit} className="kb-btn">回去聊聊天</button>
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
-      <div className="pill">第 {idx + 1} / {rounds.length} 关 · 得分 {score}</div>
-      <div className="kid-card px-8 py-6 max-w-md w-full text-center">
-        <div className="text-8xl mb-3 animate-pop">❓</div>
-        <div className="font-display text-2xl text-cocoa">小星提示：{round.hint}</div>
+      <div className="text-sm text-[#6F6A60]">第 {idx + 1} / {rounds.length} 题 · 得分 {score}</div>
+      <div className="w-full max-w-xl text-center">
+        <div className="text-lg text-[#2D2A26] leading-relaxed">小星说：</div>
+        <div className="mt-2 text-xl font-medium text-[#2D2A26] leading-relaxed">
+          猜一猜这是什么小动物？<br />
+          <span className="text-[#4F6BED]">{round.target.hint}</span>
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-4 w-full max-w-md">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl">
         {round.options.map((o) => {
-          const correct = picked && o.emoji === round.emoji;
-          const wrong = picked === o.emoji && o.emoji !== round.emoji;
+          const correct = picked && o.name === round.target.name;
+          const wrong = picked === o.name && o.name !== round.target.name;
           return (
             <button
-              key={o.emoji}
+              key={o.name}
               type="button"
-              onClick={() => onPick(o.emoji)}
-              className={`kid-btn !rounded-chunk !p-0 h-28 flex-col ${
-                correct ? "!bg-mint" : wrong ? "!bg-strawberry/60" : "kid-btn-sun"
+              onClick={() => onPick(o.name)}
+              className={`px-4 py-3 rounded-lg border text-base transition-colors ${
+                correct
+                  ? "bg-[#E8F1E1] border-[#7BAF6A] text-[#2D2A26]"
+                  : wrong
+                  ? "bg-[#FCE6E8] border-[#E09AA1] text-[#2D2A26]"
+                  : "bg-white border-[#E5DFD3] text-[#2D2A26] hover:bg-[#F4EFE3]"
               }`}
             >
-              <span className="text-5xl leading-none">{o.emoji}</span>
-              <span className="text-sm font-bold mt-1">{o.word}</span>
+              {o.name}
             </button>
           );
         })}
       </div>
-      <button type="button" onClick={onExit} className="text-cocoa/60 hover:text-cocoa underline">不玩了，回去聊聊</button>
-    </div>
-  );
-}
-
-function GameDone({ score, total, onAgain, onExit }: { score: number; total: number; onAgain: () => void; onExit: () => void }) {
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
-      <div className="text-7xl animate-pop">🏆</div>
-      <div className="font-display text-4xl text-cocoa text-center">太棒啦！</div>
-      <div className="font-body text-xl text-cocoa/80 text-center">这一局你答对了 {score} / {total} 题</div>
-      <div className="flex gap-3">
-        <button type="button" onClick={onAgain} className="kid-btn kid-btn-mint">再来一局</button>
-        <button type="button" onClick={onExit} className="kid-btn">回去聊聊天</button>
-      </div>
+      <button type="button" onClick={onExit} className="text-sm text-[#6F6A60] hover:text-[#2D2A26] underline">
+        不玩了，回去聊聊
+      </button>
     </div>
   );
 }

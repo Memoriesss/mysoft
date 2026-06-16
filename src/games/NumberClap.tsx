@@ -1,13 +1,11 @@
-// 数字拍拍手
+// 数到 N — 纯文字游戏
+// 机器人说"我数到 3"（逐个念 1、2、3），小朋友从文字选项里挑出对应数量
+// 或：机器人说"找 1 个东西"，小朋友挑对应数量
+// 后续可改为：纯语音说"数到 3"，用户语音回答"1 2 3"
+
 import { useEffect, useMemo, useState } from "react";
 import { speak } from "../utils/tts";
 import { useSettings } from "../store/useSettings";
-
-type Round = { target: number };
-
-function buildRounds(): Round[] {
-  return shuffle([1, 2, 3, 4, 5]).map((t) => ({ target: t }));
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -18,56 +16,70 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function NumberClap({ onExit }: { onExit: () => void }) {
-  const { quietMode } = useSettings();
+type Round = { target: number; prompt: string; options: number[] };
+
+function buildRounds(): Round[] {
+  return shuffle([1, 2, 3, 4, 5]).map((target) => {
+    const distractors = shuffle([1, 2, 3, 4, 5].filter((n) => n !== target)).slice(0, 2);
+    const options = shuffle([target, ...distractors]);
+    const prompt = `小星要数到 ${target}。准备好了吗？1、2、${target === 1 ? "…" : target === 2 ? "3" : target === 3 ? "4" : target === 4 ? "5" : "6"}。一共数了几个？`;
+    return { target, prompt, options };
+  });
+}
+
+type Props = { onExit: () => void };
+
+export default function NumberClap({ onExit }: Props) {
+  const { ttsEnabled, voiceRate } = useSettings();
   const rounds = useMemo(buildRounds, []);
   const [idx, setIdx] = useState(0);
-  const [count, setCount] = useState(0);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
 
   const round = rounds[idx];
 
   useEffect(() => {
     if (done) return;
-    setCount(0);
     const t = setTimeout(() => {
-      speak(`拍 ${round.target} 下小手，准备好开始！`, { muted: quietMode, rate: 0.95 });
-    }, 250);
+      speak(round.prompt, { enabled: ttsEnabled, rate: voiceRate });
+    }, 200);
     return () => clearTimeout(t);
-  }, [idx, done, quietMode, round]);
+  }, [idx, done, ttsEnabled, voiceRate, round]);
 
-  const clap = () => {
-    if (done) return;
-    setCount((c) => {
-      const next = c + 1;
-      if (next === round.target) {
-        speak("太棒啦！刚刚好！", { muted: quietMode, rate: 1 });
-        setTimeout(() => {
-          if (idx + 1 < rounds.length) {
-            setIdx(idx + 1);
-          } else {
-            setDone(true);
-          }
-        }, 1200);
-      } else if (next > round.target) {
-        speak("哎呀，多拍了一下，再来一次！", { muted: quietMode, rate: 1 });
-        return 0;
+  const onPick = (n: number) => {
+    if (picked !== null) return;
+    setPicked(n);
+    if (n === round.target) {
+      setScore((s) => s + 1);
+      speak("太棒啦！答对啦！", { enabled: ttsEnabled, rate: voiceRate });
+    } else {
+      speak(`差一点哦，正确答案是${round.target}。`, { enabled: ttsEnabled, rate: voiceRate });
+    }
+    setTimeout(() => {
+      if (idx + 1 < rounds.length) {
+        setIdx(idx + 1);
+        setPicked(null);
       } else {
-        speak(`还差 ${round.target - next} 下！`, { muted: quietMode, rate: 1 });
+        setDone(true);
       }
-      return next;
-    });
+    }, 1500);
   };
 
   if (done) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
-        <div className="text-7xl animate-pop">👏</div>
-        <div className="font-display text-4xl text-cocoa">小手动起来！</div>
-        <div className="font-body text-xl text-cocoa/80">完成了所有 {rounds.length} 关！</div>
-        <div className="flex gap-3">
-          <button type="button" onClick={() => { setIdx(0); setCount(0); setDone(false); }} className="kid-btn kid-btn-mint">再来一局</button>
-          <button type="button" onClick={onExit} className="kid-btn">回去聊聊天</button>
+      <div className="h-full w-full flex flex-col items-center justify-center gap-5 px-4">
+        <div className="text-xl font-semibold text-[#2D2A26]">数数游戏结束啦！</div>
+        <div className="text-base text-[#6F6A60]">你答对了 {score} / {rounds.length} 题</div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setIdx(0); setScore(0); setPicked(null); setDone(false); }}
+            className="kb-btn-ghost"
+          >
+            再来一局
+          </button>
+          <button type="button" onClick={onExit} className="kb-btn">回去聊聊天</button>
         </div>
       </div>
     );
@@ -75,20 +87,38 @@ export default function NumberClap({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center gap-6 px-4">
-      <div className="pill">第 {idx + 1} / {rounds.length} 关</div>
-      <div className="kid-card px-8 py-6 max-w-md w-full text-center">
-        <div className="font-display text-3xl text-cocoa mb-2">拍 {round.target} 下小手</div>
-        <div className="text-6xl font-cute text-cocoa">👏 {count} / {round.target}</div>
+      <div className="text-sm text-[#6F6A60]">第 {idx + 1} / {rounds.length} 题 · 得分 {score}</div>
+      <div className="w-full max-w-xl text-center">
+        <div className="text-lg text-[#2D2A26]">小星说：</div>
+        <div className="mt-2 text-xl font-medium text-[#2D2A26] leading-relaxed">
+          {round.prompt}
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={clap}
-        className="kid-btn !rounded-full w-44 h-44 !p-0 kid-btn-strawberry text-7xl active:scale-90 transition-transform"
-        aria-label="拍一下小手"
-      >
-        👏
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-xl">
+        {round.options.map((n) => {
+          const correct = picked !== null && n === round.target;
+          const wrong = picked === n && n !== round.target;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onPick(n)}
+              className={`px-4 py-3 rounded-lg border text-xl font-medium transition-colors ${
+                correct
+                  ? "bg-[#E8F1E1] border-[#7BAF6A] text-[#2D2A26]"
+                  : wrong
+                  ? "bg-[#FCE6E8] border-[#E09AA1] text-[#2D2A26]"
+                  : "bg-white border-[#E5DFD3] text-[#2D2A26] hover:bg-[#F4EFE3]"
+              }`}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" onClick={onExit} className="text-sm text-[#6F6A60] hover:text-[#2D2A26] underline">
+        不玩了，回去聊聊
       </button>
-      <button type="button" onClick={onExit} className="text-cocoa/60 hover:text-cocoa underline">不玩了，回去聊聊</button>
     </div>
   );
 }

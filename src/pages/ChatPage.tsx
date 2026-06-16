@@ -1,264 +1,317 @@
-import { useEffect, useState } from "react";
-import Robot from "../components/Robot";
+import { useEffect, useRef, useState } from "react";
 import Bubble from "../components/Bubble";
-import ReplyDock from "../components/ReplyDock";
 import ParentPanel from "../components/ParentPanel";
-import GameCard from "../components/GameCard";
-import { TopicTint } from "../components/Decorations";
 import { speak, stopSpeak, warmupTts } from "../utils/tts";
-import { useIdle } from "../utils/idles";
 import { useSettings } from "../store/useSettings";
 import { start as dlgStart, reply as dlgReply, idlePrompt } from "../engine/dialogueEngine";
 import type { DialogueState } from "../engine/dialogueEngine";
-import { getTopic } from "../engine/topics";
+import type { ReplyOption } from "../engine/topics";
 import { pickStory } from "../engine/stories";
 
-type Page = "chat" | "game" | "story";
+type ChatMsg = { from: "bot" | "kid"; text: string };
 
+type Page = "chat" | "game" | "story";
 type Props = {
   go: (p: Page, opts?: { gameId?: string }) => void;
-  triggerGame?: string | null;
-  triggerStory?: boolean;
   onTimeUp: () => void;
   onClear: () => void;
 };
 
-export default function ChatPage({ go, triggerGame, triggerStory, onTimeUp, onClear }: Props) {
-  const settings = useSettings();
-  const [dlg, setDlg] = useState<DialogueState>(() => dlgStart().state);
-  const [history, setHistory] = useState<{ from: "bot" | "kid"; text: string }[]>([]);
-  const [options, setOptions] = useState(dlgStart().result.options);
-  const [speaking, setSpeaking] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [parentOpen, setParentOpen] = useState(false);
-  const [showGameMenu, setShowGameMenu] = useState(false);
-  const [showStoryMenu, setShowStoryMenu] = useState(false);
-  const [holdStart, setHoldStart] = useState<number | null>(null);
+const IDLE_MS = 9000;
 
-  const topic = getTopic(dlg.topicId);
+export default function ChatPage({ go, onTimeUp, onClear }: Props) {
+  const { ttsEnabled, voiceRate, toggleTts, addUsed, rolloverIfNewDay, dailyLimitMin, usedSeconds, resetUsed } = useSettings();
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [options, setOptions] = useState<ReplyOption[] | undefined>(undefined);
+  const [dlg, setDlg] = useState<DialogueState | null>(null);
+  const [showOffer, setShowOffer] = useState<null | "game" | "story">(null);
+  const [showParent, setShowParent] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [receivedPing, setReceivedPing] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const idleTimerRef = useRef<number | null>(null);
+  const isThinkingRef = useRef(false);
 
-  // 启动时小星打招呼
+  // 启动时小星主动打招呼
   useEffect(() => {
     warmupTts();
-    const { result, state } = dlgStart();
+    const { state, result } = dlgStart();
     setDlg(state);
     setOptions(result.options);
-    setHistory([{ from: "bot", text: result.botText }]);
-    setSpeaking(true);
-    speak(result.botText, { muted: settings.quietMode, rate: settings.voiceRate });
-    const t = setTimeout(() => setSpeaking(false), 1800);
-    return () => clearTimeout(t);
+    pushBot(result.botText, result.options, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 触发从外部进入游戏/故事
+  // 时长累计 + 跨天重置
   useEffect(() => {
-    if (triggerGame) {
-      go("game", { gameId: triggerGame });
-    } else if (triggerStory) {
-      go("story");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [triggerGame, triggerStory]);
-
-  // 时长累计 + 到达限制
-  useEffect(() => {
-    settings.rolloverIfNewDay();
-    const id = setInterval(() => {
-      settings.addUsed(1);
-      const used = settings.usedSeconds + 1;
-      if (used >= settings.dailyLimitMin * 60) {
+    rolloverIfNewDay();
+    const id = window.setInterval(() => {
+      addUsed(1);
+      // 注意：store 内部同步更新；这里读一次快照判断
+      const total = dailyLimitMin * 60;
+      if (usedSeconds + 1 >= total) {
         onTimeUp();
       }
     }, 1000);
-    return () => clearInterval(id);
+    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 自动滚到底
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [messages.length, isThinking]);
+
   // 沉默主动说话
-  const idle = useIdle(9000, () => {
-    if (showGameMenu || showStoryMenu) return;
-    const result = idlePrompt(dlg);
-    if (result.nextCmd === "game") setShowGameMenu(true);
-    else if (result.nextCmd === "story") setShowStoryMenu(true);
-    else pushBot(result.botText, result.options);
-  });
-  // 用户每次输入都 kick 一下
-  const kickIdle = () => idle.kick();
+  useEffect(() => {
+    if (!dlg) return;
+    if (showOffer) return;
+    armIdle();
+    return clearIdle;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dlg, showOffer, messages.length]);
 
-  const pushBot = (text: string, opts?: typeof options) => {
-    if (!text) return;
-    setHistory((h) => [...h, { from: "bot", text }]);
-    setOptions(opts);
-    setSpeaking(true);
-    speak(text, { muted: settings.quietMode, rate: settings.voiceRate });
-    setTimeout(() => setSpeaking(false), Math.max(1200, text.length * 220));
-  };
-
-  const onPick = (value: string, label: string) => {
-    kickIdle();
-    setHistory((h) => [...h, { from: "kid", text: label }]);
-    setOptions(undefined);
-    const { state, result } = dlgReply(dlg, value);
-    setDlg(state);
-    if (result.nextCmd === "game") {
-      setShowGameMenu(true);
-      pushBot("好呀！小星选了一个好玩的游戏给你～", undefined);
-    } else if (result.nextCmd === "story") {
-      setShowStoryMenu(true);
-      pushBot("竖起耳朵，小星开始讲啦～", undefined);
-    } else if (result.nextCmd === "switch") {
-      pushBot("好的，我们换个新话题～", result.options);
-      setDlg({ ...state, nodeId: result.nodeId, topicId: result.topicId, turns: 0 });
-    } else {
-      pushBot(result.botText, result.options);
+  function clearIdle() {
+    if (idleTimerRef.current !== null) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
     }
-  };
-
-  const onAskGame = () => {
-    kickIdle();
-    setShowGameMenu(true);
-  };
-  const onAskStory = () => {
-    kickIdle();
-    setShowStoryMenu(true);
-  };
-  const onRecord = () => {
-    kickIdle();
-    setRecording((r) => !r);
-    if (!recording) {
-      // 模拟：用户"说"了 1.6s 一句话，机器人给一个简短的回应
-      setTimeout(() => {
-        setRecording(false);
-        setHistory((h) => [...h, { from: "kid", text: "🎤 我说话啦" }]);
-        const canned = [
-          { text: "哇，你说得好棒！小星听懂了～", options: undefined },
-          { text: "嗯嗯，小星也这么觉得！", options: undefined },
-          { text: "好厉害！那我们玩个游戏吧？", options: undefined },
-        ];
-        const pick = canned[Math.floor(Math.random() * canned.length)];
-        pushBot(pick.text, pick.options);
-        setShowGameMenu(true);
-      }, 1600);
-    }
-  };
-
-  // 长按左上角 3s 进入家长
-  const startHold = () => {
-    setHoldStart(Date.now());
-    setTimeout(() => {
-      if (holdStart && Date.now() - holdStart >= 2900) {
-        setParentOpen(true);
+  }
+  function armIdle() {
+    clearIdle();
+    idleTimerRef.current = window.setTimeout(() => {
+      if (isThinkingRef.current) return;
+      if (!dlg) return;
+      const result = idlePrompt(dlg);
+      if (result.nextCmd === "game") {
+        setShowOffer("game");
+        pushBot("好呀，我们玩个游戏吧？", undefined);
+      } else if (result.nextCmd === "story") {
+        setShowOffer("story");
+        pushBot("想听小星讲故事吗？", undefined);
+      } else {
+        setDlg({ ...dlg, topicId: result.topicId, nodeId: result.nodeId, turns: 0 });
+        pushBot(result.botText, result.options);
       }
-    }, 3000);
-  };
-  const endHold = () => setHoldStart(null);
+    }, IDLE_MS);
+  }
 
-  const totalSec = settings.dailyLimitMin * 60;
-  const remainPct = Math.max(0, 100 - (settings.usedSeconds / totalSec) * 100);
+  function kickIdle() {
+    if (dlg) armIdle();
+  }
+
+  function pushBot(text: string, opts?: ReplyOption[], doSpeak: boolean = true) {
+    if (!text) return;
+    setIsThinking(false);
+    isThinkingRef.current = false;
+    setMessages((m) => [...m, { from: "bot", text }]);
+    setOptions(opts);
+    if (doSpeak) {
+      speak(text, { enabled: ttsEnabled, rate: voiceRate });
+    }
+  }
+
+  function handleUser(text: string) {
+    if (!dlg) return;
+    if (!text.trim()) return;
+    setMessages((m) => [...m, { from: "kid", text }]);
+    setOptions(undefined);
+    setIsThinking(true);
+    isThinkingRef.current = true;
+    showReceivedPing();
+    // 模拟一点思考延迟，让对话更自然
+    window.setTimeout(() => {
+      const { state, result } = dlgReply(dlg, text);
+      setDlg(state);
+      if (result.nextCmd === "game") {
+        setShowOffer("game");
+        pushBot("好呀，小星选了一个好玩的游戏给你～", undefined);
+      } else if (result.nextCmd === "story") {
+        setShowOffer("story");
+        pushBot("竖起耳朵，小星开始讲啦～", undefined);
+      } else if (result.nextCmd === "switch") {
+        setDlg({ ...state, topicId: result.topicId, nodeId: result.nodeId, turns: 0 });
+        pushBot(result.botText, result.options);
+      } else {
+        pushBot(result.botText, result.options);
+      }
+    }, 350);
+    kickIdle();
+  }
+
+  function handlePickOption(opt: ReplyOption) {
+    handleUser(`${opt.icon ?? ""} ${opt.label}`.trim());
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const t = draft.trim();
+    if (!t) return;
+    setDraft("");
+    handleUser(t);
+  }
+
+  function showReceivedPing() {
+    setReceivedPing(true);
+    window.setTimeout(() => setReceivedPing(false), 1500);
+  }
+
+  function startVoicePlaceholder() {
+    setIsRecording(true);
+    // 占位：1.5s 后假装听到一句"嗯嗯"
+    window.setTimeout(() => {
+      setIsRecording(false);
+      handleUser("🎤 我说：嗯嗯");
+    }, 1500);
+  }
+
+  function chooseGameOffer(gameId: string) {
+    setShowOffer(null);
+    if (!dlg) return;
+    pushBot("好呀，开始啦！", undefined);
+    window.setTimeout(() => go("game", { gameId }), 400);
+  }
+  function acceptStoryOffer() {
+    setShowOffer(null);
+    if (!dlg) return;
+    const story = pickStory();
+    pushBot("好呀，竖起耳朵听哦～", undefined);
+    window.setTimeout(() => go("story", { gameId: story.id }), 400);
+  }
+  function declineOffer() {
+    setShowOffer(null);
+    pushBot("好呀，那我们就继续聊吧！", undefined);
+    kickIdle();
+  }
 
   return (
-    <div className="h-full w-full relative flex flex-col">
-      <TopicTint tint={topic.tint} />
-
-      {/* 顶部状态栏 */}
-      <header className="flex items-center justify-between px-4 py-3">
-        <button
-          type="button"
-          onMouseDown={startHold}
-          onMouseUp={endHold}
-          onMouseLeave={endHold}
-          onTouchStart={startHold}
-          onTouchEnd={endHold}
-          className="w-12 h-12 rounded-full bg-lavender text-white grid place-items-center text-xl font-display shadow-pill border-2 border-cocoa/15"
-          aria-label="长按进入家长控制台"
-        >
-          ✦
-        </button>
+    <div className="h-full w-full flex flex-col bg-[#FAF7F0]">
+      {/* 顶部细标题栏 */}
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#E5DFD3] bg-white">
         <div className="flex items-center gap-2">
-          <span className="pill">⏱️ 今日还剩 {Math.max(0, totalSec - settings.usedSeconds)} 秒</span>
-          <div className="w-32 h-3 rounded-full bg-white/60 overflow-hidden border-2 border-cocoa/10">
-            <div className="h-full bg-mint" style={{ width: `${remainPct}%` }} />
-          </div>
+          <span className="w-2 h-2 rounded-full bg-[#4F6BED]" />
+          <span className="text-sm font-medium text-[#2D2A26]">童语星球 · 小星</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleTts}
+            className="text-xs text-[#6F6A60] hover:text-[#2D2A26]"
+            aria-label="切换小星语音"
+            title={ttsEnabled ? "语音已开启，点一下关闭" : "语音已关闭，点一下开启"}
+          >
+            {ttsEnabled ? "🔊 语音" : "🔇 静音"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowParent(true)}
+            className="text-xs text-[#6F6A60] hover:text-[#2D2A26]"
+          >
+            家长
+          </button>
         </div>
       </header>
 
-      {/* 主题小标签 */}
-      <div className="px-4 -mt-1 mb-2 flex items-center gap-2 text-cocoa/70 text-sm font-bold">
-        <span className="text-2xl">{topic.emoji}</span>
-        <span>现在聊：{topic.name}</span>
-      </div>
-
-      {/* 机器人 */}
-      <div className="flex-1 min-h-0 flex flex-col items-center px-4">
-        <Robot size={210} speaking={speaking} />
-        <div className="w-full max-w-xl flex-1 min-h-0 overflow-y-auto px-2 py-2 space-y-3">
-          {history.map((h, i) => (
-            <Bubble key={i} from={h.from} text={h.text} />
+      {/* 对话列表 */}
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+        <div className="max-w-2xl mx-auto flex flex-col gap-3">
+          {messages.map((m, i) => (
+            <Bubble key={i} from={m.from} text={m.text} />
           ))}
-          {speaking && (
-            <div className="flex items-center gap-2 text-cocoa/60 text-sm pl-12">
-              <span className="w-1.5 h-1.5 rounded-full bg-cocoa/40 animate-bounce" />
-              <span className="w-1.5 h-1.5 rounded-full bg-cocoa/40 animate-bounce" style={{ animationDelay: "120ms" }} />
-              <span className="w-1.5 h-1.5 rounded-full bg-cocoa/40 animate-bounce" style={{ animationDelay: "240ms" }} />
+          {isThinking && (
+            <div className="flex justify-start">
+              <div className="kb-bubble-bot flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#9A9387] animate-kb-typing" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#9A9387] animate-kb-typing" style={{ animationDelay: "120ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#9A9387] animate-kb-typing" style={{ animationDelay: "240ms" }} />
+              </div>
+            </div>
+          )}
+
+          {/* 主动邀请卡（游戏/故事） */}
+          {showOffer && (
+            <div className="bg-white border border-[#E5DFD3] rounded-2xl p-4 flex flex-col gap-3 max-w-md self-start animate-kb-fade-in">
+              <div className="text-sm text-[#2D2A26]">想玩什么呀？</div>
+              {showOffer === "game" && (
+                <div className="flex flex-col gap-2">
+                  <button type="button" onClick={() => chooseGameOffer("emoji")} className="kb-btn-ghost justify-start">猜动物（我说提示，你猜名字）</button>
+                  <button type="button" onClick={() => chooseGameOffer("color")} className="kb-btn-ghost justify-start">颜色问答（我说颜色，你答物品）</button>
+                  <button type="button" onClick={() => chooseGameOffer("clap")} className="kb-btn-ghost justify-start">数到几（我数数，你猜一共几个）</button>
+                </div>
+              )}
+              {showOffer === "story" && (
+                <div className="flex flex-col gap-2">
+                  <button type="button" onClick={acceptStoryOffer} className="kb-btn-ghost justify-start">好呀，听小星讲故事</button>
+                </div>
+              )}
+              <button type="button" onClick={declineOffer} className="text-xs text-[#6F6A60] hover:text-[#2D2A26] self-start">
+                先不玩，继续聊
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* 输入区 */}
-      <ReplyDock
-        options={showGameMenu || showStoryMenu ? undefined : options}
-        onPick={(v, l) => {
-          setShowGameMenu(false);
-          setShowStoryMenu(false);
-          onPick(v, l);
-        }}
-        onAskGame={onAskGame}
-        onAskStory={onAskStory}
-        onRecord={onRecord}
-        isRecording={recording}
-      />
+      {/* 候选回复 + 输入区 */}
+      <div className="border-t border-[#E5DFD3] bg-white">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex flex-col gap-2">
+          {/* 候选回复 */}
+          {options && options.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => handlePickOption(o)}
+                  className="px-3 py-1.5 rounded-full border border-[#E5DFD3] bg-white text-sm text-[#2D2A26] hover:bg-[#F4EFE3] transition-colors"
+                >
+                  {o.icon && <span className="mr-1">{o.icon}</span>}
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {/* 游戏菜单 */}
-      {showGameMenu && (
-        <div className="absolute inset-0 z-30 bg-cream/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 animate-whoosh">
-          <div className="font-display text-3xl text-cocoa mb-4">小星选了 3 个好玩的游戏～</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-3xl">
-            <GameCard emoji="🐶" title="emoji 猜猜乐" desc="看图猜小动物" tint="lavender" onClick={() => go("game", { gameId: "emoji" })} />
-            <GameCard emoji="🎨" title="颜色找一找" desc="眼力大挑战" tint="mint" onClick={() => go("game", { gameId: "color" })} />
-            <GameCard emoji="👏" title="数字拍拍手" desc="拍对就赢" tint="sun" onClick={() => go("game", { gameId: "clap" })} />
-          </div>
-          <button type="button" onClick={() => { setShowGameMenu(false); kickIdle(); }} className="mt-6 text-cocoa/70 underline">先不玩，回去聊聊天</button>
+          {/* 输入框 + 语音占位 + 发送 */}
+          <form onSubmit={handleSubmit} className="flex items-center gap-2 relative">
+            <button
+              type="button"
+              onClick={startVoicePlaceholder}
+              disabled={isRecording}
+              className={`kb-btn-ghost px-2.5 ${isRecording ? "animate-kb-blink" : ""}`}
+              title="按着说一句话（占位，未来接 STT）"
+              aria-label="按着说一句话"
+            >
+              🎤
+            </button>
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="跟小星说点什么…"
+                className="kb-input"
+              />
+              {receivedPing && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#4F6BED] animate-kb-fade-in" />
+              )}
+            </div>
+            <button type="submit" disabled={!draft.trim()} className="kb-btn">发送</button>
+          </form>
         </div>
-      )}
-
-      {/* 故事菜单 */}
-      {showStoryMenu && (
-        <div className="absolute inset-0 z-30 bg-cream/95 backdrop-blur-sm flex flex-col items-center justify-center p-4 animate-whoosh">
-          <div className="font-display text-3xl text-cocoa mb-2">小星要开始讲啦～</div>
-          <div className="font-body text-cocoa/70 mb-6">翻一翻，看一看，听小星讲故事</div>
-          <button
-            type="button"
-            onClick={() => {
-              setShowStoryMenu(false);
-              const story = pickStory();
-              go("story", { gameId: story.id });
-            }}
-            className="kid-btn kid-btn-lavender text-3xl"
-          >
-            <span className="text-4xl">📖</span> 开始听故事
-          </button>
-          <button type="button" onClick={() => { setShowStoryMenu(false); kickIdle(); }} className="mt-4 text-cocoa/70 underline">先不听</button>
-        </div>
-      )}
+      </div>
 
       <ParentPanel
-        open={parentOpen}
-        onClose={() => setParentOpen(false)}
+        open={showParent}
+        onClose={() => setShowParent(false)}
         onClearHistory={() => {
-          setHistory([]);
           stopSpeak();
+          setMessages([]);
+          resetUsed();
           onClear();
         }}
       />

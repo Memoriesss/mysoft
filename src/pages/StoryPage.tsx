@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { speak, stopSpeak } from "../utils/tts";
-import { pickStory, STORIES, type Story } from "../engine/stories";
+import { STORIES, type Story } from "../engine/stories";
 import { useSettings } from "../store/useSettings";
 
 type Props = {
@@ -9,18 +9,18 @@ type Props = {
 };
 
 export default function StoryPage({ storyId, onExit }: Props) {
-  const story: Story = STORIES.find((s) => s.id === storyId) || pickStory();
+  const story: Story = STORIES.find((s) => s.id === storyId) ?? STORIES[0];
   const [page, setPage] = useState(0);
-  const { quietMode } = useSettings();
+  const { ttsEnabled, voiceRate } = useSettings();
 
   useEffect(() => {
-    if (quietMode) return;
     stopSpeak();
+    if (!ttsEnabled) return;
     const t = setTimeout(() => {
-      speak(`${story.title}。${story.pages[page]}`, { rate: 0.85 });
+      speak(story.pages[page], { rate: voiceRate });
     }, 200);
     return () => clearTimeout(t);
-  }, [page, story, quietMode]);
+  }, [page, story, ttsEnabled, voiceRate]);
 
   const next = () => {
     if (page + 1 < story.pages.length) setPage(page + 1);
@@ -31,42 +31,32 @@ export default function StoryPage({ storyId, onExit }: Props) {
   };
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center p-6">
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 pill">{story.title}</div>
-      <div className="absolute top-6 right-6 text-3xl">{story.emoji}</div>
-
-      <div
-        className="kid-card w-full max-w-2xl aspect-[4/3] flex flex-col items-center justify-center text-center px-10 py-12"
-        style={{
-          background:
-            story.tint === "lavender" ? "#EFE7FF" :
-            story.tint === "tangerine" ? "#FFE9D2" :
-            story.tint === "sky" ? "#E2F3FB" :
-            story.tint === "mint" ? "#E1F6E8" : "#FFF8E7",
-        }}
-      >
-        <div className="text-7xl mb-6 animate-pop">{story.emoji}</div>
-        <p className="font-display text-3xl md:text-4xl text-cocoa leading-snug">
+    <div className="h-full w-full flex flex-col items-center justify-center p-4 gap-6">
+      <div className="text-sm text-[#6F6A60]">{story.title} · {page + 1} / {story.pages.length}</div>
+      <div className="w-full max-w-2xl bg-white border border-[#E5DFD3] rounded-2xl px-8 py-12 min-h-[240px] flex items-center justify-center text-center">
+        <p className="text-2xl md:text-3xl text-[#2D2A26] leading-relaxed font-medium">
           {story.pages[page]}
         </p>
-        <div className="mt-8 flex items-center gap-2 text-cocoa/60">
-          {story.pages.map((_, i) => (
-            <span
-              key={i}
-              className={`w-2.5 h-2.5 rounded-full ${i === page ? "bg-strawberry" : "bg-cocoa/20"}`}
-            />
-          ))}
-        </div>
       </div>
-
-      <div className="mt-8 flex gap-3">
-        <button type="button" onClick={prev} disabled={page === 0} className="kid-btn kid-btn-sky disabled:opacity-40">
-          ← 上一页
+      <div className="flex items-center gap-1.5 text-[#6F6A60]">
+        {story.pages.map((_, i) => (
+          <span
+            key={i}
+            className={`w-2 h-2 rounded-full ${i === page ? "bg-[#4F6BED]" : "bg-[#D6D0C2]"}`}
+          />
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={prev} disabled={page === 0} className="kb-btn-ghost disabled:opacity-40">
+          上一页
         </button>
-        <button type="button" onClick={next} className="kid-btn kid-btn-strawberry">
-          {page + 1 < story.pages.length ? "翻一页 →" : "讲完啦，回去聊"}
+        <button type="button" onClick={next} className="kb-btn">
+          {page + 1 < story.pages.length ? "下一页" : "讲完啦"}
         </button>
       </div>
+      <button type="button" onClick={onExit} className="text-sm text-[#6F6A60] hover:text-[#2D2A26] underline">
+        不听了，回去聊聊
+      </button>
     </div>
   );
 }

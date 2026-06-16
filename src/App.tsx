@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Clouds } from "./components/Decorations";
 import Welcome from "./pages/Welcome";
 import ChatPage from "./pages/ChatPage";
 import StoryPage from "./pages/StoryPage";
@@ -33,15 +32,16 @@ function writeHash(r: Route) {
     chat: "#/chat",
     bye: "#/bye",
   };
-  const next = r.name === "game" ? `#/game/${r.gameId}` : r.name === "story" ? "#/story" : map[r.name];
+  const next =
+    r.name === "game" ? `#/game/${r.gameId}` :
+    r.name === "story" ? "#/story" :
+    map[r.name];
   if (window.location.hash !== next) window.location.hash = next;
 }
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => readHash());
   const settings = useSettings();
-  const [pendingGame, setPendingGame] = useState<string | null>(null);
-  const [pendingStory, setPendingStory] = useState<boolean>(false);
 
   useEffect(() => {
     const onHash = () => setRoute(readHash());
@@ -51,73 +51,56 @@ export default function App() {
 
   useEffect(() => {
     settings.rolloverIfNewDay();
-  }, [settings]);
-
-  // 监听跨日重置
-  useEffect(() => {
-    const t = setInterval(() => settings.rolloverIfNewDay(), 60_000);
-    return () => clearInterval(t);
+    const t = window.setInterval(() => settings.rolloverIfNewDay(), 60_000);
+    return () => window.clearInterval(t);
   }, [settings]);
 
   const go = (p: "chat" | "game" | "story", opts?: { gameId?: string }) => {
     if (p === "chat") {
-      setPendingGame(null);
-      setPendingStory(false);
       setRoute({ name: "chat" });
       writeHash({ name: "chat" });
-    } else if (p === "game") {
-      if (opts?.gameId) {
-        setRoute({ name: "game", gameId: opts.gameId });
-        writeHash({ name: "game", gameId: opts.gameId });
-      }
-    } else {
+    } else if (p === "game" && opts?.gameId) {
+      setRoute({ name: "game", gameId: opts.gameId });
+      writeHash({ name: "game", gameId: opts.gameId });
+    } else if (p === "story") {
       setRoute({ name: "story", storyId: opts?.gameId });
       writeHash({ name: "story" });
     }
   };
 
   const restart = () => {
-    setPendingGame(null);
-    setPendingStory(false);
     setRoute({ name: "welcome" });
     writeHash({ name: "welcome" });
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <Clouds />
-
+    <div className="h-full w-full bg-[#FAF7F0]">
       {route.name === "welcome" && <Welcome onEnter={() => go("chat")} />}
 
       {route.name === "chat" && (
         <ChatPage
           go={go}
-          triggerGame={pendingGame}
-          triggerStory={pendingStory}
           onTimeUp={() => {
             stopSpeak();
             setRoute({ name: "bye" });
             writeHash({ name: "bye" });
           }}
-          onClear={() => {
-            setPendingGame(null);
-            setPendingStory(false);
-          }}
+          onClear={() => { /* no-op for now */ }}
         />
       )}
 
       {route.name === "game" && route.gameId === "emoji" && (
-        <GameShell title="emoji 猜猜乐" onExit={() => go("chat")}>
+        <GameShell title="猜动物" onExit={() => go("chat")}>
           <EmojiGuess onExit={() => go("chat")} />
         </GameShell>
       )}
       {route.name === "game" && route.gameId === "color" && (
-        <GameShell title="颜色找一找" onExit={() => go("chat")}>
+        <GameShell title="颜色问答" onExit={() => go("chat")}>
           <ColorFind onExit={() => go("chat")} />
         </GameShell>
       )}
       {route.name === "game" && route.gameId === "clap" && (
-        <GameShell title="数字拍拍手" onExit={() => go("chat")}>
+        <GameShell title="数到几" onExit={() => go("chat")}>
           <NumberClap onExit={() => go("chat")} />
         </GameShell>
       )}
@@ -134,8 +117,8 @@ export default function App() {
 function GameShell({ title, children }: { title: string; onExit: () => void; children: ReactNode }) {
   return (
     <div className="h-full w-full flex flex-col">
-      <div className="px-4 py-3 flex items-center justify-between">
-        <div className="font-display text-2xl text-cocoa">{title}</div>
+      <div className="px-4 py-2.5 border-b border-[#E5DFD3] bg-white flex items-center">
+        <span className="text-sm font-medium text-[#2D2A26]">{title}</span>
       </div>
       <div className="flex-1 min-h-0">{children}</div>
     </div>

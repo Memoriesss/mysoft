@@ -1,22 +1,21 @@
 type BubbleProps = {
   text: string;
   from: "bot" | "kid";
-  icon?: string;
+  /** 文本里的 emoji 不做特殊处理，由用户/机器人话语自然带 */
+  hint?: string;
 };
 
-export default function Bubble({ text, from, icon }: BubbleProps) {
-  const isBot = from === "bot";
-  return (
-    <div className={`flex items-end gap-2 ${isBot ? "justify-start" : "justify-end"} animate-whoosh`}>
-      {isBot && (
-        <div className="w-9 h-9 shrink-0 rounded-full bg-lavender text-white grid place-items-center font-display text-lg shadow-pill border-2 border-cocoa/15">
-          ✦
-        </div>
-      )}
-      <div className={`chat-bubble ${isBot ? "chat-bubble-bot" : "chat-bubble-kid"}`}>
-        {icon && <span className="mr-1.5 text-2xl align-middle">{icon}</span>}
-        {text}
+export default function Bubble({ text, from }: BubbleProps) {
+  if (from === "bot") {
+    return (
+      <div className="flex justify-start animate-kb-fade-in">
+        <div className="kb-bubble-bot">{text}</div>
       </div>
+    );
+  }
+  return (
+    <div className="flex justify-end animate-kb-fade-in">
+      <div className="kb-bubble-kid">{text}</div>
     </div>
   );
 }
