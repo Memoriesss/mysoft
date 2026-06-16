@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>随机移动小球</title>
     <style>
         * {
@@ -380,25 +380,39 @@
         @media (max-width: 768px) {
             body {
                 padding: 0;
+                margin: 0;
+                overflow: hidden;          /* 禁止滚动，确保画布占满屏幕 */
             }
 
+            html, body {
+                width: 100%;
+                height: 100dvh;            /* 动态视口高度，避开浏览器 UI 抖动 */
+            }
+
+            /* 画布全屏：铺满整个移动屏幕（除返回按钮占用的右下角） */
             #gameCanvas {
+                position: fixed;
+                inset: 0;                  /* top/right/bottom/left 都为 0 */
                 width: 100vw;
-                height: calc(100vw * 800 / 1200);
-                max-height: 100vh;
-                max-width: calc(100vh * 1200 / 800);
+                height: 100dvh;
+                max-width: none;
+                max-height: none;
                 border: none;
                 box-shadow: none;
+                z-index: 1;
             }
 
+            /* 配置面板移动端：固定在顶部安全区内，确保折叠按钮可点击 */
             .config-panel {
-                top: 8px;
+                position: fixed;
+                top: calc(env(safe-area-inset-top, 0px) + 8px);
                 left: 8px;
                 right: 8px;
                 width: auto;
                 max-width: calc(100vw - 16px);
-                padding: 10px 12px 12px;
+                padding: 8px 10px 10px;
                 font-size: 11px;
+                z-index: 50;               /* 高于画布(1)，避免被覆盖 */
             }
 
             .config-panel.collapsed {
@@ -407,10 +421,22 @@
                 max-width: none;
             }
 
+            /* 折叠按钮：放在面板标题左侧（不靠边），点击区更大 */
+            .config-toggle {
+                width: 28px;
+                height: 28px;
+                font-size: 14px;
+                margin-left: 6px;
+                margin-right: 0;
+            }
+
             .config-panel-title {
                 font-size: 11px;
                 margin-bottom: 10px;
                 padding-bottom: 6px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
             }
 
             .config-row {
@@ -450,12 +476,15 @@
                 font-size: 9px;
             }
 
+            /* 返回按钮：固定在右下角安全区内 */
             .back-fab {
+                position: fixed;
                 top: auto;
-                bottom: 8px;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
                 right: 8px;
-                padding: 6px 10px;
-                font-size: 11px;
+                padding: 8px 12px;
+                font-size: 12px;
+                z-index: 60;               /* 高于配置面板(50) */
             }
         }
     </style>
@@ -649,6 +678,13 @@
          * 取视口可用空间内的最大内接矩形
          */
         function fitCanvas() {
+            // 移动端（<=768px）用 CSS 全屏规则（100vw × 100dvh + position:fixed），不再用 JS 计算
+            if (window.innerWidth <= 768) {
+                canvas.style.width = '100vw';
+                canvas.style.height = '100dvh';
+                return;
+            }
+            // 桌面端：按 1200:800 比例计算视口内的最大内接矩形
             const padding = 16;
             const maxW = window.innerWidth - padding;
             const maxH = window.innerHeight - padding;
