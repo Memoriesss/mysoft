@@ -751,12 +751,22 @@
                     if (isl.x < 0 || isl.x > 1) continue;
                     const px = ((isl.r - state.rMin) / (state.rMax - state.rMin)) * cssW;
                     const py = cssH - isl.x * cssH;
-                    // 寿命因子：0（消散）~ 1（最亮）
+                    // 寿命因子：1（刚出生）→ 0（即将死亡）
                     const lifeRatio = isl.life / isl.ttl;
-                    // alpha 范围 0.5~1.0（确保新生岛屿也清晰可见）
-                    const alpha = 0.5 + 0.5 * Math.sin(lifeRatio * Math.PI);
+                    // 三段式亮度：出生渐入 → 稳定满亮 → 消散淡出
+                    //   出生 (lifeRatio > 0.85): 0.4 → 1.0 渐入（约 0.2s）
+                    //   稳定 (0.15 ~ 0.85): 保持 1.0（绝大部分时间，~1.5~3s）
+                    //   消散 (lifeRatio < 0.15): 1.0 → 0.4 淡出（约 0.2s）
+                    let alpha;
+                    if (lifeRatio > 0.85) {
+                        alpha = 0.4 + 0.6 * (1 - lifeRatio) / 0.15;
+                    } else if (lifeRatio < 0.15) {
+                        alpha = 0.4 + 0.6 * lifeRatio / 0.15;
+                    } else {
+                        alpha = 1.0;
+                    }
                     const radius = isl.size * (0.6 + 0.4 * alpha);
-                    // 外圈光晕（径向渐变）
+                    // 外圈光晕
                     const grd = ctx.createRadialGradient(px, py, 0, px, py, radius);
                     grd.addColorStop(0, `rgba(255, 240, 150, ${0.9 * alpha})`);
                     grd.addColorStop(0.4, `rgba(255, 150, 80, ${0.6 * alpha})`);
@@ -765,7 +775,7 @@
                     ctx.beginPath();
                     ctx.arc(px, py, radius, 0, Math.PI * 2);
                     ctx.fill();
-                    // 实心核心（不透明、清晰可辨）
+                    // 实心核心
                     ctx.fillStyle = `rgba(255, 255, 240, ${alpha})`;
                     ctx.beginPath();
                     ctx.arc(px, py, Math.max(2.5, radius * 0.3), 0, Math.PI * 2);
