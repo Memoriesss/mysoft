@@ -816,6 +816,9 @@
             });
         }
 
+        // 别名（事件 handler 中大量使用 render() 简写）
+        const render = renderBifurcation;
+
         // ========== 渲染：当前 r 的时间序列 ==========
         const seqCanvas = document.getElementById('seqCanvas');
         const seqCtx = seqCanvas.getContext('2d');
