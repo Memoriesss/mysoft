@@ -403,7 +403,7 @@
                 <canvas id="chaosCanvas"></canvas>
             </div>
             <div class="hint">
-                拖动 <kbd>选区</kbd> 缩放细节 · <kbd>双击</kbd> 重置视图 · <kbd>滚轮</kbd> 也可缩放 · <kbd>动态岛屿</kbd> 由双种子混沌 RNG 实时生成
+                拖动 <kbd>选区</kbd> 缩放细节 · <kbd>双击</kbd> 重置视图 · <kbd>滚轮</kbd> 也可缩放 · <kbd>稳定岛</kbd> 由 Logistic Map 真实周期窗口自动扫描得出
             </div>
         </section>
 
@@ -445,25 +445,19 @@
 
             <div class="control">
                 <div class="control-title">
-                    <span>动态稳定岛（双种子混沌）</span>
-                    <span class="val" id="liveIslandsVal">关闭</span>
+                    <span>稳定岛（真实周期窗口）</span>
+                    <span class="val" id="stabilityVal">开启</span>
                 </div>
                 <div class="control-actions" style="margin-bottom: 8px;">
-                    <button class="btn primary" id="liveIslandsBtn">实时生成</button>
+                    <button class="btn primary" id="stabilityBtn">隐藏稳定岛</button>
                 </div>
-                <div style="font-size: 11px; color: #7a6a6a; margin-bottom: 6px;">
-                    当前岛屿数: <b id="islandCount" style="color: #ff8866;">0</b>
+                <div style="font-size: 11px; color: #7a6a6a; line-height: 1.6;">
+                    自动扫描 r ∈ [2.5, 4.0]，<br>
+                    找出所有周期 ≤ 12 的稳定窗口，<br>
+                    用 <b style="color:#a0f0b4;">P1 绿色</b> /
+                    <b style="color:#ffdc64;">P2~P12 金色</b> 横线
+                    标记稳定轨道的真实形状。
                 </div>
-                <div class="control-title" style="margin-top: 4px;">
-                    <span>岛屿刷新率 (Hz)</span>
-                    <span class="val" id="islandRateVal">12</span>
-                </div>
-                <input type="range" class="slider" id="islandRateSlider" min="1" max="30" step="1" value="12">
-                <div class="control-title" style="margin-top: 8px;">
-                    <span>岛屿生成密度</span>
-                    <span class="val" id="islandDensityVal">0.60</span>
-                </div>
-                <input type="range" class="slider" id="islandDensitySlider" min="0" max="100" step="1" value="60">
             </div>
         </section>
 
@@ -480,11 +474,12 @@
             <div class="info-card">
                 <h3>稳定岛（周期窗口）</h3>
                 <p>
-                    混沌中暗藏无数周期窗口，最著名的是 <span class="marker">r ≈ 3.828</span> 的<b>周期 3 窗口</b>。
+                    混沌中暗藏无数<b>周期窗口</b>，最著名的是 <span class="marker">r ≈ 3.828</span> 的<b>周期 3 窗口</b>。
                     按 Sharkovsky 定理：出现周期 3 即意味着<b>存在所有周期</b>，混沌的"完整诞生"即从此开始。<br><br>
-                    <b>动态岛屿：</b>勾选"实时生成"后，分岔图上会持续浮现"稳定岛"光斑——
-                    它们由<b>双种子混沌 RNG</b>驱动，在 r ∈ [3.55, 4.0] 区间内随机选位，
-                    并用真实的 Logistic 迭代算出 x 坐标，因此岛位会和分岔图的混沌结构吻合。
+                    <b>真实稳定岛：</b>点击"隐藏/显示稳定岛"切换——
+                    蓝色背景条标出每个窗口的 r 范围，
+                    金/绿色横线标出该周期对应的 N 个稳定 x 值（n = 周期数）。
+                    这些不是动态光点，而是 Logistic Map 在该 r 区间的真实稳定轨道。
                 </p>
             </div>
             <div class="info-card">
@@ -528,10 +523,8 @@
             rCurrent: 3.5,
             // 调色板
             palette: 'crimson',
-            // 实时稳定岛（双种子混沌驱动）
-            liveIslands: false,       // 关闭时按钮显示"实时生成"；开启时显示"停止生成"
-            islandRate: 12,           // 每秒岛屿重生成次数（FPS 上限 60）
-            islandDensity: 0.6,       // 岛屿生成密度（0~1）
+            // 稳定岛显示开关（默认开启）
+            showStability: true,
         };
 
         // 调色板（暗红主题 + 备选）
@@ -586,41 +579,85 @@
         }
 
         /**
-         * 双种子混沌 RNG（与 cardgame.html / moveball.html 同源）
-         * - seed1 来自 Math.random，seed2 来自 performance.now + Math.random
-         * - 双 xorshift32 互扰（高位 ↔ 低位交叉异或）
-         * - 非线性映射 u*2 - v 进一步打散
-         * 注意：仍是伪随机——仅用于游戏/可视化场景
+         * 周期检测：在稳定收敛后取一段轨道，找出最小正周期 p (1 ≤ p ≤ maxP)
+         * 使轨道中每个点与 p 步前之差 < eps；否则视为混沌（返回 0）
          */
-        function makeChaoticRNG() {
-            let seed1 = (Math.random() * 4294967295) >>> 0;
-            let seed2 = ((performance.now() * 1000) ^ (Math.random() * 1e9)) >>> 0;
-            if (seed1 === seed2) seed2 = (seed2 + 0x9E3779B9) >>> 0;
-            function xorshift32(s) {
-                s ^= s << 13; s >>>= 0;
-                s ^= s >>> 17;
-                s ^= s << 5;  s >>>= 0;
-                return s >>>= 0;
+        function detectOrbitPeriod(r, transient, samples, maxP, eps) {
+            let x = 0.5;
+            for (let i = 0; i < transient; i++) x = logistic(x, r);
+            if (isNaN(x) || x < 0 || x > 1) return 0;
+            const orbit = new Array(samples);
+            for (let i = 0; i < samples; i++) {
+                x = logistic(x, r);
+                orbit[i] = x;
             }
-            return function next() {
-                const a = xorshift32(seed1 += 0x9E3779B9);
-                const b = xorshift32(seed2 += 0x85EBCA77);
-                const mixed = ((a >>> 16) ^ (b & 0xFFFF)) + ((a & 0xFFFF) ^ (b >>> 16));
-                const u = (mixed >>> 8) / 16777215;
-                const v = ((a ^ b) >>> 0) / 4294967295;
-                return Math.abs(u * 2 - v);
-            };
+            // 在轨道中后段检测周期（避免早期过渡态）
+            const startIdx = Math.max(0, Math.floor(samples * 0.5));
+            for (let p = 1; p <= maxP; p++) {
+                let ok = true;
+                for (let i = startIdx + p; i < samples; i++) {
+                    if (Math.abs(orbit[i] - orbit[i - p]) > eps) { ok = false; break; }
+                }
+                if (ok) return p;
+            }
+            return 0; // 混沌
         }
-        // 全局岛屿生成用 RNG（独立于其他页面）
-        const islandRNG = makeChaoticRNG();
 
         /**
-         * 实时稳定岛数据结构
-         * islands: [{r, x, life, ttl, r, size, x, vx}]
-         * 每帧由 islandRNG 驱动重生成
+         * 扫描整个 r 范围 [2.5, 4.0]，找出所有稳定窗口（周期 ≤ maxP 的连续 r 段）
+         * 每个窗口记录 {rStart, rEnd, period, xs[]}，其中 xs 是该周期对应的稳定点
+         * —— 这就是"稳定岛"的几何真实形状
          */
-        let islands = [];   // 当前帧的岛屿集合
-        const ISLAND_TTL = 30; // 每座岛的寿命（帧数）
+        let stabilityWindows = [];   // 稳定岛集合（缓存，重算分岔时同步刷新）
+
+        function computeStabilityWindows() {
+            const SCAN = 1600;     // r 扫描密度
+            const TRAN = 800;      // 丢弃瞬态迭代
+            const SAMP = 300;      // 收集的轨道点
+            const MAXP = 12;       // 最大识别周期
+            const EPS  = 0.004;    // 周期判定容差
+            const rMin = 2.5, rMax = 4.0;
+
+            // 1) 每个 r 算一次周期
+            const rs = new Array(SCAN);
+            const ps = new Array(SCAN);
+            for (let i = 0; i < SCAN; i++) {
+                rs[i] = rMin + (i / (SCAN - 1)) * (rMax - rMin);
+                ps[i] = detectOrbitPeriod(rs[i], TRAN, SAMP, MAXP, EPS);
+            }
+
+            // 2) 分组成连续段
+            const windows = [];
+            let i = 0;
+            while (i < SCAN) {
+                const p = ps[i];
+                if (p === 0) { i++; continue; }
+                let j = i;
+                while (j < SCAN && ps[j] === p) j++;
+                // 段 [i, j) 都是周期 p
+                const rStart = rs[i];
+                const rEnd   = rs[j - 1];
+                // 用窗口中点 r 计算稳定点集（取 p 个不同 x 值）
+                const rCenter = (rStart + rEnd) / 2;
+                let x = 0.5;
+                for (let k = 0; k < TRAN; k++) x = logistic(x, rCenter);
+                const xs = new Array(p);
+                for (let k = 0; k < p; k++) {
+                    x = logistic(x, rCenter);
+                    xs[k] = x;
+                }
+                // 过滤掉过窄的窗口（r 跨度 < 1.5e-4）——可能是扫描伪影
+                // 同时只保留混沌海中的稳定岛（r > Feigenbaum 点 ≈ 3.5699）
+                // —— 周期倍增区域（r < 3.57）的 P1/P2/P4/P8 属于"有序区"，
+                //    不算真正的"混沌中的稳定岛"
+                const FEIGENBAUM_END = 3.5699;
+                if (rEnd - rStart >= 1.5e-4 && rStart > FEIGENBAUM_END) {
+                    windows.push({ rStart, rEnd, period: p, xs });
+                }
+                i = j;
+            }
+            stabilityWindows = windows;
+        }
 
         // 对单个 r 计算轨道（丢弃前 transient 个，收集 samples 个）
         function computeOrbit(r, transient, samples, x0) {
@@ -648,39 +685,9 @@
                 const xs = computeOrbit(r, state.transient, state.samples);
                 rColumns[i] = { r: r, xs: xs };
             }
+            // 同步刷新稳定窗口缓存（独立于 cssW，使用全 r 范围 [2.5, 4.0]）
+            computeStabilityWindows();
             dirty = false;
-        }
-
-        /**
-         * 稳定岛集合的演化（每帧调用一次）
-         * - 由 islandRNG 实时生成新岛
-         * - 旧岛按 ttl 衰减
-         * - 岛屿 r 范围覆盖整个分岔图 [2.5, 4.0]，x 由 logistic 实际轨道算出
-         */
-        function tickIslands() {
-            // 1. 老化旧岛
-            for (let i = islands.length - 1; i >= 0; i--) {
-                islands[i].life -= 1;
-                if (islands[i].life <= 0) {
-                    islands.splice(i, 1);
-                }
-            }
-            // 2. 限制岛屿总数
-            const MAX = 80;
-            // 3. 按 density 概率生成新岛
-            if (islandRNG() < state.islandDensity && islands.length < MAX) {
-                // 岛中心 r：覆盖整个分岔图（不仅在混沌区）
-                const r = 2.5 + islandRNG() * 1.5;  // [2.5, 4.0)
-                // 岛中心 x：用 logistic 在该 r 处的实际轨道找一个稳定值（更真实）
-                let x = 0.3 + islandRNG() * 0.4;
-                for (let k = 0; k < 80; k++) x = logistic(x, r);
-                if (isNaN(x) || x < 0 || x > 1) x = 0.5;  // 防御性 fallback
-                // 岛大小：混沌中岛有大有小
-                const size = 8 + islandRNG() * 24;       // 像素半径
-                // 寿命：每座岛独立的"心跳"
-                const ttl = 18 + Math.floor(islandRNG() * 25);
-                islands.push({ r, x, size, life: ttl, ttl });
-            }
         }
 
         // ========== 渲染：分岔图 ==========
@@ -743,43 +750,69 @@
                 }
             }
 
-            // 绘制实时稳定岛（双种子混沌驱动）
-            if (state.liveIslands) {
-                for (let i = 0; i < islands.length; i++) {
-                    const isl = islands[i];
-                    if (isl.r < state.rMin || isl.r > state.rMax) continue;
-                    if (isl.x < 0 || isl.x > 1) continue;
-                    const px = ((isl.r - state.rMin) / (state.rMax - state.rMin)) * cssW;
-                    const py = cssH - isl.x * cssH;
-                    // 寿命因子：1（刚出生）→ 0（即将死亡）
-                    const lifeRatio = isl.life / isl.ttl;
-                    // 三段式亮度：出生渐入 → 稳定满亮 → 消散淡出
-                    //   出生 (lifeRatio > 0.85): 0.4 → 1.0 渐入（约 0.2s）
-                    //   稳定 (0.15 ~ 0.85): 保持 1.0（绝大部分时间，~1.5~3s）
-                    //   消散 (lifeRatio < 0.15): 1.0 → 0.4 淡出（约 0.2s）
-                    let alpha;
-                    if (lifeRatio > 0.85) {
-                        alpha = 0.4 + 0.6 * (1 - lifeRatio) / 0.15;
-                    } else if (lifeRatio < 0.15) {
-                        alpha = 0.4 + 0.6 * lifeRatio / 0.15;
-                    } else {
-                        alpha = 1.0;
+            // 绘制稳定岛：真实的稳定周期窗口（静态、无闪烁）
+            // 每个岛画法：
+            //   1) 蓝色半透明背景条标注 r 范围
+            //   2) 蓝色亮线（横跨窗口宽度）画出该周期对应的 N 个稳定 x 值
+            //   3) 顶部标签显示 "P{n}" 周期数
+            if (state.showStability && stabilityWindows.length) {
+                for (let i = 0; i < stabilityWindows.length; i++) {
+                    const w = stabilityWindows[i];
+                    // 视口裁剪
+                    if (w.rEnd < state.rMin || w.rStart > state.rMax) continue;
+                    const rL = Math.max(w.rStart, state.rMin);
+                    const rR = Math.min(w.rEnd,   state.rMax);
+                    const pxL = ((rL - state.rMin) / (state.rMax - state.rMin)) * cssW;
+                    const pxR = ((rR - state.rMin) / (state.rMax - state.rMin)) * cssW;
+                    const segW = pxR - pxL;
+                    if (segW <= 0) continue;
+
+                    // 1) 蓝色半透明背景条（仅在 r 区间非完全有序时区分；统一都画）
+                    ctx.fillStyle = 'rgba(80, 200, 255, 0.07)';
+                    ctx.fillRect(pxL, 0, segW, cssH);
+                    // 边界细线
+                    ctx.strokeStyle = 'rgba(80, 200, 255, 0.35)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pxL + 0.5, 0);
+                    ctx.lineTo(pxL + 0.5, cssH);
+                    ctx.moveTo(pxR - 0.5, 0);
+                    ctx.lineTo(pxR - 0.5, cssH);
+                    ctx.stroke();
+
+                    // 2) 画该周期的 N 条稳定轨道线（每条横跨整个窗口宽度）
+                    const lineColor = w.period === 1
+                        ? 'rgba(160, 240, 180, 0.9)'   // P1（不动点）用绿色
+                        : 'rgba(255, 220, 100, 0.95)'; // 其他周期用金色
+                    ctx.strokeStyle = lineColor;
+                    ctx.lineWidth = w.period <= 4 ? 1.4 : 1.0;
+                    for (let k = 0; k < w.xs.length; k++) {
+                        const xv = w.xs[k];
+                        if (xv < 0 || xv > 1 || isNaN(xv)) continue;
+                        const py = cssH - xv * cssH;
+                        ctx.beginPath();
+                        ctx.moveTo(pxL, py);
+                        ctx.lineTo(pxR, py);
+                        ctx.stroke();
                     }
-                    const radius = isl.size * (0.6 + 0.4 * alpha);
-                    // 外圈光晕
-                    const grd = ctx.createRadialGradient(px, py, 0, px, py, radius);
-                    grd.addColorStop(0, `rgba(255, 240, 150, ${0.9 * alpha})`);
-                    grd.addColorStop(0.4, `rgba(255, 150, 80, ${0.6 * alpha})`);
-                    grd.addColorStop(1, 'rgba(255, 100, 60, 0)');
-                    ctx.fillStyle = grd;
-                    ctx.beginPath();
-                    ctx.arc(px, py, radius, 0, Math.PI * 2);
-                    ctx.fill();
-                    // 实心核心
-                    ctx.fillStyle = `rgba(255, 255, 240, ${alpha})`;
-                    ctx.beginPath();
-                    ctx.arc(px, py, Math.max(2.5, radius * 0.3), 0, Math.PI * 2);
-                    ctx.fill();
+
+                    // 3) 周期标签（窗口顶部居中），仅当宽度足够
+                    if (segW >= 28) {
+                        const pxMid = (pxL + pxR) / 2;
+                        // 标签背景
+                        const label = 'P' + w.period;
+                        ctx.font = 'bold 10px -apple-system, "PingFang SC", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        const tw = ctx.measureText(label).width + 8;
+                        ctx.fillStyle = 'rgba(20, 12, 14, 0.85)';
+                        ctx.fillRect(pxMid - tw / 2, 2, tw, 14);
+                        ctx.strokeStyle = lineColor;
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(pxMid - tw / 2 + 0.5, 2.5, tw - 1, 13);
+                        ctx.fillStyle = lineColor;
+                        ctx.fillText(label, pxMid, 4);
+                    }
                 }
             }
 
@@ -1119,79 +1152,41 @@
             });
         });
 
-        // 动态稳定岛控制
-        const liveIslandsBtn = document.getElementById('liveIslandsBtn');
-        const liveIslandsVal = document.getElementById('liveIslandsVal');
-        function syncLiveIslandsBtn() {
-            if (state.liveIslands) {
-                liveIslandsVal.textContent = '开启';
-                liveIslandsBtn.classList.add('primary');
-                liveIslandsBtn.textContent = '停止生成';
+        // 稳定岛显示控制
+        const stabilityBtn = document.getElementById('stabilityBtn');
+        const stabilityVal = document.getElementById('stabilityVal');
+        function syncStabilityBtn() {
+            if (state.showStability) {
+                stabilityVal.textContent = '开启';
+                stabilityBtn.classList.add('primary');
+                stabilityBtn.textContent = '隐藏稳定岛';
             } else {
-                liveIslandsVal.textContent = '关闭';
-                liveIslandsBtn.classList.remove('primary');
-                liveIslandsBtn.textContent = '实时生成';
+                stabilityVal.textContent = '关闭';
+                stabilityBtn.classList.remove('primary');
+                stabilityBtn.textContent = '显示稳定岛';
             }
         }
-        syncLiveIslandsBtn();
-        liveIslandsBtn.addEventListener('click', () => {
-            state.liveIslands = !state.liveIslands;
-            if (!state.liveIslands) {
-                // 关闭时立即清空所有岛屿
-                islands = [];
-            }
-            syncLiveIslandsBtn();
+        syncStabilityBtn();
+        stabilityBtn.addEventListener('click', () => {
+            state.showStability = !state.showStability;
+            syncStabilityBtn();
             render();
         });
 
-        const islandRateSlider = document.getElementById('islandRateSlider');
-        const islandRateVal = document.getElementById('islandRateVal');
-        islandRateSlider.addEventListener('input', (e) => {
-            state.islandRate = parseInt(e.target.value, 10);
-            islandRateVal.textContent = state.islandRate;
-        });
-
-        const islandDensitySlider = document.getElementById('islandDensitySlider');
-        const islandDensityVal = document.getElementById('islandDensityVal');
-        islandDensitySlider.addEventListener('input', (e) => {
-            state.islandDensity = parseInt(e.target.value, 10) / 100;
-            islandDensityVal.textContent = state.islandDensity.toFixed(2);
-        });
-
         // ========== 主循环（动画） ==========
-        // 帧驱动：根据 islandRate 节奏调用 tickIslands()，再触发渲染
-        // 不依赖真实 dt，而是用累加器"节流"，避免每帧都生成新岛
+        // 注意：稳定岛是静态的几何对象（不是动态光点），不再需要逐帧 tick
+        // 这里仅做一次渲染 + 等待下一帧
         let lastTime = performance.now();
-        let tickAccumulator = 0;  // 距上次 tick 的累计时间 (ms)
 
         function frame(now) {
             const dt = now - lastTime;
             lastTime = now;
 
-            if (state.liveIslands) {
-                // 目标：每 1000/islandRate 毫秒 tick 一次
-                const interval = 1000 / state.islandRate;
-                tickAccumulator += dt;
-                // 防止后台标签页恢复时一次补帧太多
-                if (tickAccumulator > interval * 4) tickAccumulator = interval;
-                while (tickAccumulator >= interval) {
-                    tickIslands();
-                    tickAccumulator -= interval;
-                }
-            } else {
-                tickAccumulator = 0;
-            }
-
-            // 更新岛屿计数显示
-            const islandCountEl = document.getElementById('islandCount');
-            if (islandCountEl) islandCountEl.textContent = islands.length;
-
-            // 重算分岔图只在视图/samples/transient 改变时触发（dirty 标志）
-            // 但岛屿是动态的，每帧都需要重绘
+            // 分岔图与稳定岛均为静态几何对象，但当 state.rCurrent 因交互改变时
+            // rCurrent 标记线需要随之更新；这里每帧调用一次 render 成本极低
             render();
 
-            // 序列图：仅在 rCurrent 变化时重算（renderSequence 内部会读取 state.rCurrent）
-            // 但每帧调用成本很低 (300 次迭代)，这里保持每帧刷新
+            // 时间序列也保持每帧刷新（受 rCurrent 影响）
             renderSequence();
 
             requestAnimationFrame(frame);
