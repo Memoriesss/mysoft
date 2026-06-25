@@ -451,6 +451,9 @@
                 <div class="control-actions" style="margin-bottom: 8px;">
                     <button class="btn primary" id="liveIslandsBtn">实时生成</button>
                 </div>
+                <div style="font-size: 11px; color: #7a6a6a; margin-bottom: 6px;">
+                    当前岛屿数: <b id="islandCount" style="color: #ff8866;">0</b>
+                </div>
                 <div class="control-title" style="margin-top: 4px;">
                     <span>岛屿刷新率 (Hz)</span>
                     <span class="val" id="islandRateVal">12</span>
@@ -652,8 +655,7 @@
          * 稳定岛集合的演化（每帧调用一次）
          * - 由 islandRNG 实时生成新岛
          * - 旧岛按 ttl 衰减
-         * - 岛屿位置约束：仅在混沌区（r > 3.57）出现"有界岛"
-         *   周期 1/2/4 等稳定区不画岛（它们本身就是稳态）
+         * - 岛屿 r 范围覆盖整个分岔图 [2.5, 4.0]，x 由 logistic 实际轨道算出
          */
         function tickIslands() {
             // 1. 老化旧岛
@@ -667,13 +669,14 @@
             const MAX = 80;
             // 3. 按 density 概率生成新岛
             if (islandRNG() < state.islandDensity && islands.length < MAX) {
-                // 岛中心 r：偏向混沌区（>3.57），但允许偶尔出现在稳定岛本身（如 r=3.83）
-                const r = 3.55 + islandRNG() * 0.45;  // [3.55, 4.0)
+                // 岛中心 r：覆盖整个分岔图（不仅在混沌区）
+                const r = 2.5 + islandRNG() * 1.5;  // [2.5, 4.0)
                 // 岛中心 x：用 logistic 在该 r 处的实际轨道找一个稳定值（更真实）
-                let x = 0.3 + islandRNG() * 0.4;        // 初始猜测
+                let x = 0.3 + islandRNG() * 0.4;
                 for (let k = 0; k < 80; k++) x = logistic(x, r);
+                if (isNaN(x) || x < 0 || x > 1) x = 0.5;  // 防御性 fallback
                 // 岛大小：混沌中岛有大有小
-                const size = 6 + islandRNG() * 22;       // 像素半径
+                const size = 8 + islandRNG() * 24;       // 像素半径
                 // 寿命：每座岛独立的"心跳"
                 const ttl = 18 + Math.floor(islandRNG() * 25);
                 islands.push({ r, x, size, life: ttl, ttl });
@@ -750,22 +753,22 @@
                     const py = cssH - isl.x * cssH;
                     // 寿命因子：0（消散）~ 1（最亮）
                     const lifeRatio = isl.life / isl.ttl;
-                    // 出生时快速亮起，接近消散时渐弱
-                    const alpha = Math.sin(lifeRatio * Math.PI);
-                    const radius = isl.size * (0.4 + 0.6 * alpha);
-                    // 外圈光晕
+                    // alpha 范围 0.5~1.0（确保新生岛屿也清晰可见）
+                    const alpha = 0.5 + 0.5 * Math.sin(lifeRatio * Math.PI);
+                    const radius = isl.size * (0.6 + 0.4 * alpha);
+                    // 外圈光晕（径向渐变）
                     const grd = ctx.createRadialGradient(px, py, 0, px, py, radius);
-                    grd.addColorStop(0, `rgba(255, 230, 120, ${0.55 * alpha})`);
-                    grd.addColorStop(0.35, `rgba(255, 130, 70, ${0.35 * alpha})`);
-                    grd.addColorStop(1, 'rgba(255, 80, 60, 0)');
+                    grd.addColorStop(0, `rgba(255, 240, 150, ${0.9 * alpha})`);
+                    grd.addColorStop(0.4, `rgba(255, 150, 80, ${0.6 * alpha})`);
+                    grd.addColorStop(1, 'rgba(255, 100, 60, 0)');
                     ctx.fillStyle = grd;
                     ctx.beginPath();
                     ctx.arc(px, py, radius, 0, Math.PI * 2);
                     ctx.fill();
-                    // 中心高亮
-                    ctx.fillStyle = `rgba(255, 255, 220, ${0.85 * alpha})`;
+                    // 实心核心（不透明、清晰可辨）
+                    ctx.fillStyle = `rgba(255, 255, 240, ${alpha})`;
                     ctx.beginPath();
-                    ctx.arc(px, py, Math.max(1.2, radius * 0.18), 0, Math.PI * 2);
+                    ctx.arc(px, py, Math.max(2.5, radius * 0.3), 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
@@ -1165,6 +1168,10 @@
             } else {
                 tickAccumulator = 0;
             }
+
+            // 更新岛屿计数显示
+            const islandCountEl = document.getElementById('islandCount');
+            if (islandCountEl) islandCountEl.textContent = islands.length;
 
             // 重算分岔图只在视图/samples/transient 改变时触发（dirty 标志）
             // 但岛屿是动态的，每帧都需要重绘
