@@ -446,7 +446,7 @@
             <div class="control">
                 <div class="control-title">
                     <span>动态稳定岛（双种子混沌）</span>
-                    <span class="val" id="liveIslandsVal">开启</span>
+                    <span class="val" id="liveIslandsVal">关闭</span>
                 </div>
                 <div class="control-actions" style="margin-bottom: 8px;">
                     <button class="btn primary" id="liveIslandsBtn">实时生成</button>
@@ -526,7 +526,7 @@
             // 调色板
             palette: 'crimson',
             // 实时稳定岛（双种子混沌驱动）
-            liveIslands: true,        // 是否实时生成稳定岛
+            liveIslands: false,       // 关闭时按钮显示"实时生成"；开启时显示"停止生成"
             islandRate: 12,           // 每秒岛屿重生成次数（FPS 上限 60）
             islandDensity: 0.6,       // 岛屿生成密度（0~1）
         };
@@ -681,43 +681,45 @@
         }
 
         // ========== 渲染：分岔图 ==========
+        // 注意：fitCanvas() 应用了 setTransform(dpr, ...)，绘制坐标必须用 CSS 单位 (cssW/cssH)，
+        //       不能用 canvas.width/canvas.height（那是设备像素，会导致 retina 屏上画到画布外）
         function renderBifurcation() {
             if (dirty) computeBifurcation();
             const p = palettes[state.palette];
 
             // 背景
             ctx.fillStyle = p.bg;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, cssW, cssH);
 
             // 网格
             ctx.strokeStyle = p.grid;
-            ctx.lineWidth = 1 * dpr;
+            ctx.lineWidth = 1;
             // 横向网格（r 整刻度）
             for (let r = 2.5; r <= 4.0; r += 0.1) {
-                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
+                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * cssW;
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
+                ctx.lineTo(x, cssH);
                 ctx.stroke();
             }
             // 纵向网格（x 整刻度）
             for (let xv = 0; xv <= 1.0; xv += 0.1) {
-                const y = canvas.height - xv * canvas.height;
+                const y = cssH - xv * cssH;
                 ctx.beginPath();
                 ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
+                ctx.lineTo(cssW, y);
                 ctx.stroke();
             }
 
             // 主轴
             ctx.strokeStyle = p.axis;
-            ctx.lineWidth = 1.5 * dpr;
+            ctx.lineWidth = 1.5;
             // x = 0 和 x = 1 边界
             [0, 1].forEach((xv) => {
-                const y = canvas.height - xv * canvas.height;
+                const y = cssH - xv * cssH;
                 ctx.beginPath();
                 ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
+                ctx.lineTo(cssW, y);
                 ctx.stroke();
             });
 
@@ -726,15 +728,15 @@
             // 每个 r 列绘制 samples 个点
             for (let i = 0; i < cols; i++) {
                 const col = rColumns[i];
-                const px = (i / (cols - 1)) * canvas.width;
+                const px = (i / (cols - 1)) * cssW;
                 // 跳过画外的列
-                if (px < 0 || px > canvas.width) continue;
+                if (px < 0 || px > cssW) continue;
                 ctx.fillStyle = p.dot;
                 for (let j = 0; j < col.xs.length; j++) {
                     const x = col.xs[j];
                     if (x < 0 || x > 1 || isNaN(x)) continue;
-                    const py = canvas.height - x * canvas.height;
-                    ctx.fillRect(px, py, dpr, dpr);
+                    const py = cssH - x * cssH;
+                    ctx.fillRect(px, py, 1, 1);
                 }
             }
 
@@ -744,8 +746,8 @@
                     const isl = islands[i];
                     if (isl.r < state.rMin || isl.r > state.rMax) continue;
                     if (isl.x < 0 || isl.x > 1) continue;
-                    const px = ((isl.r - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
-                    const py = canvas.height - isl.x * canvas.height;
+                    const px = ((isl.r - state.rMin) / (state.rMax - state.rMin)) * cssW;
+                    const py = cssH - isl.x * cssH;
                     // 寿命因子：0（消散）~ 1（最亮）
                     const lifeRatio = isl.life / isl.ttl;
                     // 出生时快速亮起，接近消散时渐弱
@@ -763,7 +765,7 @@
                     // 中心高亮
                     ctx.fillStyle = `rgba(255, 255, 220, ${0.85 * alpha})`;
                     ctx.beginPath();
-                    ctx.arc(px, py, Math.max(1.2 * dpr, radius * 0.18), 0, Math.PI * 2);
+                    ctx.arc(px, py, Math.max(1.2, radius * 0.18), 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
@@ -773,41 +775,41 @@
                 const x1 = Math.min(dragStart.x, dragEnd.x);
                 const x2 = Math.max(dragStart.x, dragEnd.x);
                 ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
-                ctx.lineWidth = 1.5 * dpr;
-                ctx.setLineDash([4 * dpr, 4 * dpr]);
-                ctx.strokeRect(x1, 0, x2 - x1, canvas.height);
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(x1, 0, x2 - x1, cssH);
                 ctx.setLineDash([]);
                 // 半透明填充
                 ctx.fillStyle = 'rgba(255, 100, 100, 0.06)';
-                ctx.fillRect(x1, 0, x2 - x1, canvas.height);
+                ctx.fillRect(x1, 0, x2 - x1, cssH);
             }
 
             // 标记当前 r 处的垂直参考线
             if (state.rCurrent >= state.rMin && state.rCurrent <= state.rMax) {
-                const xr = ((state.rCurrent - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
+                const xr = ((state.rCurrent - state.rMin) / (state.rMax - state.rMin)) * cssW;
                 ctx.strokeStyle = 'rgba(255, 200, 100, 0.5)';
-                ctx.lineWidth = 1 * dpr;
+                ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(xr, 0);
-                ctx.lineTo(xr, canvas.height);
+                ctx.lineTo(xr, cssH);
                 ctx.stroke();
             }
 
             // 轴标签（r）
             ctx.fillStyle = p.axis;
-            ctx.font = `${11 * dpr}px -apple-system, "PingFang SC", sans-serif`;
+            ctx.font = `11px -apple-system, "PingFang SC", sans-serif`;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             for (let r = 2.5; r <= 4.0 + 1e-9; r += 0.5) {
-                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
-                ctx.fillText('r=' + r.toFixed(1), x + 4 * dpr, 4 * dpr);
+                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * cssW;
+                ctx.fillText('r=' + r.toFixed(1), x + 4, 4);
             }
             // y 轴
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             [0, 0.5, 1].forEach((xv) => {
-                const y = canvas.height - xv * canvas.height;
-                ctx.fillText('x=' + xv.toFixed(1), 6 * dpr, y);
+                const y = cssH - xv * cssH;
+                ctx.fillText('x=' + xv.toFixed(1), 6, y);
             });
         }
 
@@ -1104,19 +1106,25 @@
         // 动态稳定岛控制
         const liveIslandsBtn = document.getElementById('liveIslandsBtn');
         const liveIslandsVal = document.getElementById('liveIslandsVal');
-        liveIslandsBtn.addEventListener('click', () => {
-            state.liveIslands = !state.liveIslands;
+        function syncLiveIslandsBtn() {
             if (state.liveIslands) {
                 liveIslandsVal.textContent = '开启';
                 liveIslandsBtn.classList.add('primary');
-                liveIslandsBtn.textContent = '实时生成';
+                liveIslandsBtn.textContent = '停止生成';
             } else {
                 liveIslandsVal.textContent = '关闭';
                 liveIslandsBtn.classList.remove('primary');
-                liveIslandsBtn.textContent = '已停止';
-                // 立即清空所有岛屿
+                liveIslandsBtn.textContent = '实时生成';
+            }
+        }
+        syncLiveIslandsBtn();
+        liveIslandsBtn.addEventListener('click', () => {
+            state.liveIslands = !state.liveIslands;
+            if (!state.liveIslands) {
+                // 关闭时立即清空所有岛屿
                 islands = [];
             }
+            syncLiveIslandsBtn();
             render();
         });
 
