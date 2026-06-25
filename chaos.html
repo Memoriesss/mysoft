@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>混沌分岔图 · 稳定岛</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; min-height: 100vh; }
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0608;
+            color: #e8e0e0;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ========== 背景：暗红呼吸光斑 ========== */
+        .bg-aurora {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .bg-aurora::before, .bg-aurora::after {
+            content: '';
+            position: absolute;
+            width: 60vw;
+            height: 60vw;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.35;
+        }
+        .bg-aurora::before {
+            background: radial-gradient(circle, #8B0000 0%, transparent 70%);
+            top: -20%;
+            left: -20%;
+            animation: drift1 20s ease-in-out infinite;
+        }
+        .bg-aurora::after {
+            background: radial-gradient(circle, #B22222 0%, transparent 70%);
+            bottom: -30%;
+            right: -20%;
+            animation: drift2 25s ease-in-out infinite;
+        }
+        @keyframes drift1 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(10vw, 8vh); }
+        }
+        @keyframes drift2 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-8vw, -10vh); }
+        }
+
+        /* ========== 顶部导航 ========== */
+        .top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background: rgba(15, 8, 10, 0.65);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid rgba(139, 0, 0, 0.25);
+        }
+        .back-link {
+            color: #c0c0c0;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            transition: all 0.2s;
+        }
+        .back-link:hover {
+            color: #ff8866;
+            border-color: rgba(255, 100, 100, 0.6);
+            background: rgba(139, 0, 0, 0.12);
+        }
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff8866 0%, #ff4444 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+        }
+        .top-spacer { width: 80px; }
+
+        /* ========== 主容器 ========== */
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
+
+        /* 介绍区 */
+        .intro {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .intro h1 {
+            font-size: clamp(20px, 3vw, 28px);
+            font-weight: 700;
+            color: #e8d4d4;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        .intro p {
+            font-size: 13px;
+            color: #9a8a8a;
+            line-height: 1.6;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+        .intro code {
+            font-family: 'Cambria Math', Georgia, serif;
+            font-style: italic;
+            color: #ff8866;
+            background: rgba(139, 0, 0, 0.15);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        /* 画布卡片 */
+        .canvas-card {
+            position: relative;
+            background: rgba(15, 8, 10, 0.55);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            margin-bottom: 24px;
+        }
+        .canvas-wrap {
+            position: relative;
+            width: 100%;
+            background: #050203;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(139, 0, 0, 0.2);
+        }
+        #chaosCanvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
+        .canvas-overlay {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            gap: 6px;
+            z-index: 2;
+        }
+        .badge {
+            background: rgba(15, 8, 10, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            color: #c8b8b8;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-variant-numeric: tabular-nums;
+        }
+        .badge b { color: #ff8866; font-weight: 700; }
+
+        .hint {
+            margin-top: 10px;
+            font-size: 11px;
+            color: #7a6a6a;
+            text-align: center;
+        }
+        .hint kbd {
+            display: inline-block;
+            background: rgba(139, 0, 0, 0.2);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-family: inherit;
+            font-size: 10px;
+            color: #ff8866;
+        }
+
+        /* 控制面板 */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .control {
+            background: rgba(15, 8, 10, 0.55);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.25);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .control-title {
+            font-size: 11px;
+            color: #9a8a8a;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-title .val {
+            color: #ff8866;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            font-size: 13px;
+        }
+        .slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to right, #8B0000, #ff8866);
+            border-radius: 2px;
+            outline: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border: 2px solid #8B0000;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(255, 100, 100, 0.4);
+        }
+        .slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border: 2px solid #8B0000;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .control-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .btn {
+            flex: 1;
+            background: rgba(139, 0, 0, 0.2);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            color: #e8d4d4;
+            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: rgba(139, 0, 0, 0.4);
+            border-color: rgba(255, 100, 100, 0.6);
+            color: #fff;
+        }
+        .btn.primary {
+            background: linear-gradient(135deg, #8B0000, #B22222);
+            border-color: rgba(255, 100, 100, 0.5);
+        }
+        .btn.primary:hover {
+            background: linear-gradient(135deg, #B22222, #DC143C);
+        }
+
+        /* 信息卡片 */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .info-card {
+            background: rgba(15, 8, 10, 0.55);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.25);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .info-card h3 {
+            font-size: 13px;
+            color: #ff8866;
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .info-card p {
+            font-size: 12px;
+            color: #a89a9a;
+            line-height: 1.7;
+        }
+        .info-card .marker {
+            display: inline-block;
+            background: rgba(139, 0, 0, 0.2);
+            border: 1px solid rgba(139, 0, 0, 0.4);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: 'Cambria Math', Georgia, serif;
+            font-style: italic;
+            color: #ff8866;
+            font-size: 11px;
+            margin: 0 2px;
+        }
+
+        /* 当前 r 处的时间序列 */
+        .sequence {
+            background: rgba(15, 8, 10, 0.55);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(139, 0, 0, 0.25);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .sequence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .sequence-header h3 {
+            font-size: 13px;
+            color: #ff8866;
+            font-weight: 600;
+        }
+        .sequence-canvas {
+            width: 100%;
+            height: 120px;
+            background: #050203;
+            border-radius: 8px;
+            border: 1px solid rgba(139, 0, 0, 0.2);
+        }
+        .sequence-stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            color: #9a8a8a;
+        }
+        .sequence-stats span b {
+            color: #ff8866;
+            font-weight: 700;
+        }
+
+        /* 移动端 */
+        @media (max-width: 768px) {
+            .page { padding: 16px 12px 40px; }
+            .canvas-card { padding: 12px; }
+            .top-bar { padding: 10px 12px; }
+            .title { font-size: 15px; }
+            .controls { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-aurora"></div>
+
+    <header class="top-bar">
+        <a class="back-link" href="index.html">← 游戏中心</a>
+        <div class="title">混沌分岔图 · 稳定岛</div>
+        <div class="top-spacer"></div>
+    </header>
+
+    <main class="page">
+        <section class="intro">
+            <h1>Logistic Map 与稳定岛</h1>
+            <p>
+                一维 Logistic 映射 <code>x<sub>n+1</sub> = r·x<sub>n</sub>(1 − x<sub>n</sub>)</code> 是最简单的混沌系统之一。
+                当 <code>r</code> 缓慢增加时，<code>x</code> 的长期行为会从稳定的不动点出发，
+                经历 <b>周期倍增</b>（1 → 2 → 4 → 8 → 16…），
+                最终在 <code>r ≈ 3.5699</code> 后坠入混沌海——但在混沌中又藏着无数狭窄的<b>稳定岛</b>，
+                比如 r ≈ 3.83 处著名的 <b>周期 3 窗口</b>。
+            </p>
+        </section>
+
+        <section class="canvas-card">
+            <div class="canvas-wrap">
+                <div class="canvas-overlay">
+                    <div class="badge">r: <b id="rHover">—</b></div>
+                    <div class="badge">x: <b id="xHover">—</b></div>
+                </div>
+                <canvas id="chaosCanvas"></canvas>
+            </div>
+            <div class="hint">
+                拖动 <kbd>选区</kbd> 缩放细节 · <kbd>双击</kbd> 重置视图 · <kbd>滚轮</kbd> 也可缩放
+            </div>
+        </section>
+
+        <section class="controls">
+            <div class="control">
+                <div class="control-title">
+                    <span>分辨率（每 r 采样数）</span>
+                    <span class="val" id="samplesVal">200</span>
+                </div>
+                <input type="range" class="slider" id="samplesSlider" min="50" max="600" step="50" value="200">
+                <div class="control-actions">
+                    <button class="btn" id="recomputeBtn">重新计算</button>
+                </div>
+            </div>
+
+            <div class="control">
+                <div class="control-title">
+                    <span>瞬态丢弃（迭代次数）</span>
+                    <span class="val" id="transientVal">300</span>
+                </div>
+                <input type="range" class="slider" id="transientSlider" min="50" max="1000" step="50" value="300">
+                <div class="control-actions">
+                    <button class="btn primary" id="resetViewBtn">复位视图</button>
+                    <button class="btn" id="gotoPeriod3Btn">聚焦 r≈3.83</button>
+                </div>
+            </div>
+
+            <div class="control">
+                <div class="control-title">
+                    <span>调色板</span>
+                    <span class="val" id="paletteVal">暗红</span>
+                </div>
+                <div class="control-actions">
+                    <button class="btn" data-palette="crimson">暗红</button>
+                    <button class="btn" data-palette="ember">熔岩</button>
+                    <button class="btn" data-palette="phosphor">磷光</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="info-grid">
+            <div class="info-card">
+                <h3>关键分岔点</h3>
+                <p>
+                    第一次分岔：<span class="marker">r ≈ 3.000</span>，从不动点分裂为周期 2。<br>
+                    第二次分岔：<span class="marker">r ≈ 3.449</span>，4 周期。<br>
+                    第三次分岔：<span class="marker">r ≈ 3.544</span>，8 周期。<br>
+                    混沌边缘：<span class="marker">r ≈ 3.5699</span>（Feigenbaum 常数 δ ≈ 4.6692）。
+                </p>
+            </div>
+            <div class="info-card">
+                <h3>稳定岛（周期窗口）</h3>
+                <p>
+                    混沌中暗藏无数周期窗口，最著名的是 <span class="marker">r ≈ 3.828</span> 的<b>周期 3 窗口</b>。
+                    按 Sharkovsky 定理：出现周期 3 即意味着<b>存在所有周期</b>，混沌的"完整诞生"即从此开始。
+                </p>
+            </div>
+            <div class="info-card">
+                <h3>怎么看图</h3>
+                <p>
+                    横轴是参数 <code>r</code>，纵轴是状态 <code>x</code>。<br>
+                    抛掉初始瞬态后，每个 <code>r</code> 对应一组（理论上）无穷多个 <code>x</code>。<br>
+                    这些 <code>x</code> 在分岔图上形成"点云"：点越密越像条带，越稀就是周期解。
+                </p>
+            </div>
+        </section>
+
+        <section class="sequence">
+            <div class="sequence-header">
+                <h3>当前 r 处的 x 时间序列（点击或拖动画布选中 r）</h3>
+                <div class="badge">r = <b id="rCurrent">3.500</b></div>
+            </div>
+            <canvas class="sequence-canvas" id="seqCanvas"></canvas>
+            <div class="sequence-stats">
+                <span>吸引子周期: <b id="seqPeriod">—</b></span>
+                <span>当前 x: <b id="seqX">—</b></span>
+                <span>轨道上界: <b id="seqMax">—</b></span>
+                <span>轨道下界: <b id="seqMin">—</b></span>
+            </div>
+        </section>
+    </main>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ========== 全局状态 ==========
+        const state = {
+            // 视图范围
+            rMin: 2.5,
+            rMax: 4.0,
+            // 采样参数
+            samples: 200,        // 每个 r 绘制多少个点
+            transient: 300,      // 丢弃前 N 个迭代
+            // 当前选中的 r
+            rCurrent: 3.5,
+            // 调色板
+            palette: 'crimson',
+        };
+
+        // 调色板（暗红主题 + 备选）
+        const palettes = {
+            crimson: {
+                bg: '#050203',
+                grid: 'rgba(139, 0, 0, 0.15)',
+                axis: 'rgba(232, 212, 212, 0.4)',
+                dot: 'rgba(255, 100, 80, 0.65)',
+                dotHighlight: '#ffffff',
+                seq: '#ff8866',
+                seqBg: 'rgba(139, 0, 0, 0.05)',
+            },
+            ember: {
+                bg: '#0a0405',
+                grid: 'rgba(180, 60, 0, 0.18)',
+                axis: 'rgba(255, 200, 180, 0.4)',
+                dot: 'rgba(255, 180, 50, 0.7)',
+                dotHighlight: '#fff5e0',
+                seq: '#ffb432',
+                seqBg: 'rgba(180, 60, 0, 0.05)',
+            },
+            phosphor: {
+                bg: '#020a04',
+                grid: 'rgba(50, 200, 100, 0.15)',
+                axis: 'rgba(180, 230, 200, 0.4)',
+                dot: 'rgba(80, 255, 140, 0.7)',
+                dotHighlight: '#ffffff',
+                seq: '#50ff8c',
+                seqBg: 'rgba(50, 200, 100, 0.05)',
+            },
+        };
+
+        // ========== 画布与缓存 ==========
+        const canvas = document.getElementById('chaosCanvas');
+        const ctx = canvas.getContext('2d');
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        let cssW = 0, cssH = 0;
+
+        // 预计算的 r 列与每列 x 点
+        let rColumns = [];   // [{r, xs: [..]}]
+        let dirty = true;    // 是否需要重新计算分岔图
+
+        // 视图缩放/拖动状态
+        let isDragging = false;
+        let dragStart = null;
+        let dragEnd = null;
+
+        // ========== 数学：Logistic Map ==========
+        function logistic(x, r) {
+            return r * x * (1 - x);
+        }
+
+        // 对单个 r 计算轨道（丢弃前 transient 个，收集 samples 个）
+        function computeOrbit(r, transient, samples, x0) {
+            if (x0 === undefined) x0 = 0.5;
+            let x = x0;
+            const xs = [];
+            // 丢弃瞬态
+            for (let i = 0; i < transient; i++) x = logistic(x, r);
+            // 收集
+            for (let i = 0; i < samples; i++) {
+                x = logistic(x, r);
+                xs.push(x);
+            }
+            return xs;
+        }
+
+        // 计算整个分岔图
+        function computeBifurcation() {
+            const width = cssW;
+            const rRange = state.rMax - state.rMin;
+            const cols = Math.max(100, Math.floor(width));
+            rColumns = new Array(cols);
+            for (let i = 0; i < cols; i++) {
+                const r = state.rMin + (i / (cols - 1)) * rRange;
+                const xs = computeOrbit(r, state.transient, state.samples);
+                rColumns[i] = { r: r, xs: xs };
+            }
+            dirty = false;
+        }
+
+        // ========== 渲染：分岔图 ==========
+        function renderBifurcation() {
+            if (dirty) computeBifurcation();
+            const p = palettes[state.palette];
+
+            // 背景
+            ctx.fillStyle = p.bg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 网格
+            ctx.strokeStyle = p.grid;
+            ctx.lineWidth = 1 * dpr;
+            // 横向网格（r 整刻度）
+            for (let r = 2.5; r <= 4.0; r += 0.1) {
+                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            // 纵向网格（x 整刻度）
+            for (let xv = 0; xv <= 1.0; xv += 0.1) {
+                const y = canvas.height - xv * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // 主轴
+            ctx.strokeStyle = p.axis;
+            ctx.lineWidth = 1.5 * dpr;
+            // x = 0 和 x = 1 边界
+            [0, 1].forEach((xv) => {
+                const y = canvas.height - xv * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            });
+
+            // 绘制分岔点
+            const cols = rColumns.length;
+            // 每个 r 列绘制 samples 个点
+            for (let i = 0; i < cols; i++) {
+                const col = rColumns[i];
+                const px = (i / (cols - 1)) * canvas.width;
+                // 跳过画外的列
+                if (px < 0 || px > canvas.width) continue;
+                ctx.fillStyle = p.dot;
+                for (let j = 0; j < col.xs.length; j++) {
+                    const x = col.xs[j];
+                    if (x < 0 || x > 1 || isNaN(x)) continue;
+                    const py = canvas.height - x * canvas.height;
+                    ctx.fillRect(px, py, dpr, dpr);
+                }
+            }
+
+            // 选区高亮
+            if (dragStart && dragEnd) {
+                const x1 = Math.min(dragStart.x, dragEnd.x);
+                const x2 = Math.max(dragStart.x, dragEnd.x);
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+                ctx.lineWidth = 1.5 * dpr;
+                ctx.setLineDash([4 * dpr, 4 * dpr]);
+                ctx.strokeRect(x1, 0, x2 - x1, canvas.height);
+                ctx.setLineDash([]);
+                // 半透明填充
+                ctx.fillStyle = 'rgba(255, 100, 100, 0.06)';
+                ctx.fillRect(x1, 0, x2 - x1, canvas.height);
+            }
+
+            // 标记当前 r 处的垂直参考线
+            if (state.rCurrent >= state.rMin && state.rCurrent <= state.rMax) {
+                const xr = ((state.rCurrent - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
+                ctx.strokeStyle = 'rgba(255, 200, 100, 0.5)';
+                ctx.lineWidth = 1 * dpr;
+                ctx.beginPath();
+                ctx.moveTo(xr, 0);
+                ctx.lineTo(xr, canvas.height);
+                ctx.stroke();
+            }
+
+            // 轴标签（r）
+            ctx.fillStyle = p.axis;
+            ctx.font = `${11 * dpr}px -apple-system, "PingFang SC", sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            for (let r = 2.5; r <= 4.0 + 1e-9; r += 0.5) {
+                const x = ((r - state.rMin) / (state.rMax - state.rMin)) * canvas.width;
+                ctx.fillText('r=' + r.toFixed(1), x + 4 * dpr, 4 * dpr);
+            }
+            // y 轴
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            [0, 0.5, 1].forEach((xv) => {
+                const y = canvas.height - xv * canvas.height;
+                ctx.fillText('x=' + xv.toFixed(1), 6 * dpr, y);
+            });
+        }
+
+        // ========== 渲染：当前 r 的时间序列 ==========
+        const seqCanvas = document.getElementById('seqCanvas');
+        const seqCtx = seqCanvas.getContext('2d');
+        let seqW = 0, seqH = 0;
+
+        function renderSequence() {
+            const p = palettes[state.palette];
+            // 时间序列：300 次迭代，从 x0=0.5 起
+            const N = 300;
+            const xs = computeOrbit(state.rCurrent, 50, N, 0.5);
+
+            // 背景
+            seqCtx.fillStyle = p.seqBg;
+            seqCtx.fillRect(0, 0, seqCanvas.width, seqCanvas.height);
+
+            // 网格
+            seqCtx.strokeStyle = 'rgba(139, 0, 0, 0.12)';
+            seqCtx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = (i / 4) * seqCanvas.height;
+                seqCtx.beginPath();
+                seqCtx.moveTo(0, y);
+                seqCtx.lineTo(seqCanvas.width, y);
+                seqCtx.stroke();
+            }
+
+            // 折线
+            seqCtx.strokeStyle = p.seq;
+            seqCtx.lineWidth = 1.5;
+            seqCtx.beginPath();
+            for (let i = 0; i < xs.length; i++) {
+                const px = (i / (xs.length - 1)) * seqCanvas.width;
+                const py = seqCanvas.height - xs[i] * seqCanvas.height;
+                if (i === 0) seqCtx.moveTo(px, py);
+                else seqCtx.lineTo(px, py);
+            }
+            seqCtx.stroke();
+
+            // 统计
+            let xMax = -Infinity, xMin = Infinity;
+            for (let i = 0; i < xs.length; i++) {
+                if (xs[i] > xMax) xMax = xs[i];
+                if (xs[i] < xMin) xMin = xs[i];
+            }
+            document.getElementById('seqX').textContent = xs[xs.length - 1].toFixed(4);
+            document.getElementById('seqMax').textContent = xMax.toFixed(4);
+            document.getElementById('seqMin').textContent = xMin.toFixed(4);
+            document.getElementById('seqPeriod').textContent = detectPeriod(xs);
+        }
+
+        // 简单周期检测：取后 200 个点，按连续差判断
+        function detectPeriod(xs) {
+            const last = xs.slice(-200);
+            // 取不同周期 1~32，统计匹配度
+            for (let p = 1; p <= 32; p++) {
+                let ok = true;
+                for (let i = p; i < last.length; i++) {
+                    if (Math.abs(last[i] - last[i - p]) > 0.01) { ok = false; break; }
+                }
+                if (ok) return '周期 ' + p;
+            }
+            return '混沌';
+        }
+
+        // ========== 画布尺寸 ==========
+        function fitCanvas() {
+            const wrap = canvas.parentElement;
+            cssW = wrap.clientWidth;
+            // 高宽比 ≈ 16:9 但限制最小/最大
+            cssH = Math.max(320, Math.min(720, cssW * 0.55));
+            canvas.style.height = cssH + 'px';
+            canvas.width = Math.floor(cssW * dpr);
+            canvas.height = Math.floor(cssH * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            // 后续渲染用 css 坐标
+            canvas.width = cssW * dpr;
+            canvas.height = cssH * dpr;
+            // 重要：保持 dpr 缩放
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // 时间序列画布
+            seqW = seqCanvas.clientWidth;
+            seqH = seqCanvas.clientHeight;
+            seqCanvas.width = seqW * dpr;
+            seqCanvas.height = seqH * dpr;
+            seqCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            dirty = true;
+        }
+        fitCanvas();
+        window.addEventListener('resize', () => {
+            fitCanvas();
+            renderBifurcation();
+            renderSequence();
+        });
+
+        // ========== 交互：拖动选区缩放 / 点击选 r / 滚轮缩放 ==========
+        function getCanvasPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const cx = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX) - rect.left;
+            const cy = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY) - rect.top;
+            return { x: cx, y: cy };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const p = getCanvasPos(e);
+            isDragging = true;
+            dragStart = p;
+            dragEnd = p;
+            render();
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            const p = getCanvasPos(e);
+            // 实时显示 r/x
+            const r = state.rMin + (p.x / cssW) * (state.rMax - state.rMin);
+            const x = 1 - p.y / cssH;
+            document.getElementById('rHover').textContent = r.toFixed(4);
+            document.getElementById('xHover').textContent = x.toFixed(3);
+            if (isDragging) {
+                dragEnd = p;
+                render();
+            }
+        });
+        window.addEventListener('mouseup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            // 区分"点击"和"拖动"
+            const dx = Math.abs(dragEnd.x - dragStart.x);
+            if (dx < 4) {
+                // 单击：设置 rCurrent
+                const p = getCanvasPos(e);
+                const r = state.rMin + (p.x / cssW) * (state.rMax - state.rMin);
+                state.rCurrent = Math.max(2.5, Math.min(4.0, r));
+                document.getElementById('rCurrent').textContent = state.rCurrent.toFixed(3);
+                dragStart = dragEnd = null;
+                render();
+                renderSequence();
+            } else {
+                // 拖动选区：缩放
+                const x1 = Math.min(dragStart.x, dragEnd.x);
+                const x2 = Math.max(dragStart.x, dragEnd.x);
+                const r1 = state.rMin + (x1 / cssW) * (state.rMax - state.rMin);
+                const r2 = state.rMin + (x2 / cssW) * (state.rMax - state.rMin);
+                // 防止选区过窄
+                if (r2 - r1 > 0.005) {
+                    state.rMin = Math.max(2.5, r1);
+                    state.rMax = Math.min(4.0, r2);
+                    dirty = true;
+                }
+                dragStart = dragEnd = null;
+                render();
+                renderSequence();
+            }
+        });
+
+        // 触屏
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const p = getCanvasPos(e);
+            isDragging = true;
+            dragStart = p; dragEnd = p;
+            render();
+        }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const p = getCanvasPos(e);
+            if (isDragging) { dragEnd = p; render(); }
+        }, { passive: false });
+        canvas.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const dx = Math.abs(dragEnd.x - dragStart.x);
+            if (dx < 8) {
+                // tap
+                const p = getCanvasPos(e.changedTouches ? e.changedTouches[0] : e);
+                const r = state.rMin + (p.x / cssW) * (state.rMax - state.rMin);
+                state.rCurrent = Math.max(2.5, Math.min(4.0, r));
+                document.getElementById('rCurrent').textContent = state.rCurrent.toFixed(3);
+                dragStart = dragEnd = null;
+                render();
+                renderSequence();
+            } else {
+                const x1 = Math.min(dragStart.x, dragEnd.x);
+                const x2 = Math.max(dragStart.x, dragEnd.x);
+                const r1 = state.rMin + (x1 / cssW) * (state.rMax - state.rMin);
+                const r2 = state.rMin + (x2 / cssW) * (state.rMax - state.rMin);
+                if (r2 - r1 > 0.005) {
+                    state.rMin = Math.max(2.5, r1);
+                    state.rMax = Math.min(4.0, r2);
+                    dirty = true;
+                }
+                dragStart = dragEnd = null;
+                render();
+                renderSequence();
+            }
+        });
+
+        // 双击重置视图
+        canvas.addEventListener('dblclick', () => {
+            state.rMin = 2.5;
+            state.rMax = 4.0;
+            dirty = true;
+            render();
+        });
+
+        // 滚轮缩放（以鼠标位置为中心）
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const p = getCanvasPos(e);
+            const rFocus = state.rMin + (p.x / cssW) * (state.rMax - state.rMin);
+            const factor = e.deltaY > 0 ? 1.2 : 1 / 1.2;
+            let newMin = rFocus - (rFocus - state.rMin) * factor;
+            let newMax = rFocus + (state.rMax - rFocus) * factor;
+            // 限制范围
+            if (newMin < 2.5) { newMax += (2.5 - newMin); newMin = 2.5; }
+            if (newMax > 4.0) { newMin -= (newMax - 4.0); newMax = 4.0; }
+            if (newMin < 2.5) newMin = 2.5;
+            if (newMax - newMin < 0.001) return;
+            state.rMin = newMin;
+            state.rMax = newMax;
+            dirty = true;
+            render();
+        }, { passive: false });
+
+        // ========== 控制面板事件 ==========
+        const samplesSlider = document.getElementById('samplesSlider');
+        const samplesVal = document.getElementById('samplesVal');
+        samplesSlider.addEventListener('input', (e) => {
+            state.samples = parseInt(e.target.value, 10);
+            samplesVal.textContent = state.samples;
+            dirty = true;
+            // 不立即重算（防抖），改用按钮
+        });
+        samplesSlider.addEventListener('change', () => {
+            dirty = true;
+            render();
+        });
+
+        const transientSlider = document.getElementById('transientSlider');
+        const transientVal = document.getElementById('transientVal');
+        transientSlider.addEventListener('input', (e) => {
+            state.transient = parseInt(e.target.value, 10);
+            transientVal.textContent = state.transient;
+        });
+        transientSlider.addEventListener('change', () => {
+            dirty = true;
+            render();
+            renderSequence();
+        });
+
+        document.getElementById('recomputeBtn').addEventListener('click', () => {
+            dirty = true;
+            render();
+        });
+        document.getElementById('resetViewBtn').addEventListener('click', () => {
+            state.rMin = 2.5;
+            state.rMax = 4.0;
+            dirty = true;
+            render();
+        });
+        document.getElementById('gotoPeriod3Btn').addEventListener('click', () => {
+            // 聚焦 r=3.83 ± 0.05
+            state.rMin = 3.78;
+            state.rMax = 3.88;
+            state.rCurrent = 3.83;
+            document.getElementById('rCurrent').textContent = '3.830';
+            dirty = true;
+            render();
+            renderSequence();
+        });
+
+        // 调色板
+        document.querySelectorAll('[data-palette]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                state.palette = btn.dataset.palette;
+                document.getElementById('paletteVal').textContent = btn.textContent;
+                render();
+                renderSequence();
+            });
+        });
+
+        // ========== 主循环 ==========
+        function render() {
+            renderBifurcation();
+        }
+        render();
+        renderSequence();
+    })();
+    </script>
+</body>
+</html>
