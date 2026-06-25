@@ -875,18 +875,21 @@
             return '混沌';
         }
 
-        // ========== 画布尺寸 ==========
+        // ========== 画布尺寸（自适应：移动端 / 桌面 / 浏览器缩放） ==========
+        // 高度三段约束：
+        //   1. 2:1 宽高比（视觉扁平，整图一目了然）
+        //   2. 视口高度 45%（保证浏览器缩放后仍能整图可见）
+        //   3. 绝对上限 480px（防止 4K 屏拉得过高）
         function fitCanvas() {
             const wrap = canvas.parentElement;
             cssW = Math.max(200, wrap.clientWidth);
 
-            // 目标比例 2:1（更扁平，整图一眼可见）
-            const ratioH = cssW * 0.5;
-            // 移动端：高度上限 ≈ 视口 40% 且不超过 280px；桌面端上限 460px
-            const isMobile = window.innerWidth < 768;
-            const maxH = isMobile ? Math.min(window.innerHeight * 0.40, 280) : 460;
-            const minH = isMobile ? 180 : 280;
-            cssH = Math.max(minH, Math.min(maxH, ratioH));
+            const ratioH = cssW * 0.5;              // 2:1 比例
+            const vhCap = window.innerHeight * 0.45; // 视口 45%
+            const absCap = 480;                      // 绝对上限
+            const maxH = Math.min(ratioH, vhCap, absCap);
+            const minH = Math.max(160, window.innerHeight * 0.20); // 不低于 160px 且不低于视口 20%
+            cssH = Math.max(minH, maxH);
 
             canvas.style.height = cssH + 'px';
             canvas.width = Math.floor(cssW * dpr);
@@ -903,10 +906,14 @@
             dirty = true;
         }
         fitCanvas();
+        // resize 防抖：避免拖拽窗口时反复重算（动画循环会自动重绘）
+        let resizeTimer = null;
         window.addEventListener('resize', () => {
-            fitCanvas();
-            renderBifurcation();
-            renderSequence();
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                resizeTimer = null;
+                fitCanvas();
+            }, 60);
         });
 
         // ========== 交互：拖动选区缩放 / 点击选 r / 滚轮缩放 ==========
