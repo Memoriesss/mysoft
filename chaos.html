@@ -145,6 +145,7 @@
         .canvas-wrap {
             position: relative;
             width: 100%;
+            max-height: 50vh;
             background: #050203;
             border-radius: 10px;
             overflow: hidden;
@@ -154,6 +155,7 @@
             display: block;
             width: 100%;
             height: auto;
+            max-height: 50vh;
             cursor: crosshair;
         }
         .canvas-overlay {
@@ -876,17 +878,19 @@
         // ========== 画布尺寸 ==========
         function fitCanvas() {
             const wrap = canvas.parentElement;
-            cssW = wrap.clientWidth;
-            // 高宽比 ≈ 16:9 但限制最小/最大
-            cssH = Math.max(320, Math.min(720, cssW * 0.55));
+            cssW = Math.max(200, wrap.clientWidth);
+
+            // 目标比例 2:1（更扁平，整图一眼可见）
+            const ratioH = cssW * 0.5;
+            // 移动端：高度上限 ≈ 视口 40% 且不超过 280px；桌面端上限 460px
+            const isMobile = window.innerWidth < 768;
+            const maxH = isMobile ? Math.min(window.innerHeight * 0.40, 280) : 460;
+            const minH = isMobile ? 180 : 280;
+            cssH = Math.max(minH, Math.min(maxH, ratioH));
+
             canvas.style.height = cssH + 'px';
             canvas.width = Math.floor(cssW * dpr);
             canvas.height = Math.floor(cssH * dpr);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            // 后续渲染用 css 坐标
-            canvas.width = cssW * dpr;
-            canvas.height = cssH * dpr;
-            // 重要：保持 dpr 缩放
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
             // 时间序列画布
