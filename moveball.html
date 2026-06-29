@@ -20,6 +20,10 @@
 
         body {
             background-color: #0a0a0a;
+            background-image: url('https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=soft%20watercolor%20painting%20of%20white%20flowers%20with%20yellow%20centers%20and%20lush%20green%20leaves%2C%20vertical%20portrait%20composition%2C%20light%20airy%20bright%20background%2C%20painterly%20brushstrokes%2C%20fresh%20spring%20garden%2C%20photorealistic%2C%20no%20text&image_size=portrait_4_3');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -38,9 +42,9 @@
         /* 固定尺寸的画布：1200x800 逻辑坐标；CSS 显示尺寸由 JS 按视口等比缩放后写入 */
         #gameCanvas {
             display: block;
-            background-color: #111111;
-            border: 1px solid rgba(139, 0, 0, 0.3);
-            box-shadow: 0 0 30px rgba(139, 0, 0, 0.15);
+            background-color: transparent;
+            border: 1px solid rgba(255, 215, 0, 0.4);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.25);
         }
 
         /* 浮动配置面板：玻璃拟态风格 */
@@ -798,13 +802,94 @@
         initBalls();
 
         function drawBall(ball) {
-            // 纯色实心球：只填充，不描边
+            // 挂锁图标：金色锁体 + 灰色 U 形锁梁 + 黑色锁孔
+            // 以 BALL_RADIUS 为基准，锁整体尺寸 ≈ 1.6 × 半径（视觉占位与原球相当）
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
 
+            const r = BALL_RADIUS;
+            const cx = ball.x;
+            const cy = ball.y;
+
+            // 锁体参数
+            const bodyW = r * 1.5;
+            const bodyH = r * 1.2;
+            const cornerR = r * 0.2;
+            // 锁体下移，锁梁朝上
+            const bodyTopY = cy - bodyH * 0.25;
+            const bodyX = cx - bodyW / 2;
+            const bodyY = bodyTopY;
+            const bodyBottomY = bodyY + bodyH;
+
+            // —— 锁梁 (U 形) ——
+            const shackleR = r * 0.42;
+            const shackleStroke = Math.max(1.5, r * 0.16);
+            const shackleTopY = bodyY - r * 0.7;   // 锁梁顶端位置
+            ctx.strokeStyle = '#9aa0a6';
+            ctx.lineWidth = shackleStroke;
+            ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI * 2);
-            ctx.fillStyle = '#8B0000';
+            // 从左侧根部向上 → 半圆 → 右侧根部
+            ctx.moveTo(cx - shackleR, bodyY - 1);
+            ctx.lineTo(cx - shackleR, shackleTopY + shackleR);
+            ctx.arc(cx, shackleTopY + shackleR, shackleR, Math.PI, 0, false);
+            ctx.lineTo(cx + shackleR, bodyY - 1);
+            ctx.stroke();
+            // 锁梁高光
+            ctx.strokeStyle = '#dde1e6';
+            ctx.lineWidth = Math.max(0.8, shackleStroke * 0.3);
+            ctx.beginPath();
+            ctx.moveTo(cx - shackleR * 0.55, bodyY - 3);
+            ctx.lineTo(cx - shackleR * 0.55, shackleTopY + shackleR * 0.7);
+            ctx.stroke();
+
+            // —— 锁体 (圆角矩形 + 金色渐变) ——
+            const grd = ctx.createLinearGradient(bodyX, bodyY, bodyX, bodyBottomY);
+            grd.addColorStop(0, '#FFE066');
+            grd.addColorStop(0.45, '#F5B400');
+            grd.addColorStop(1, '#A06A00');
+            ctx.fillStyle = grd;
+            ctx.strokeStyle = '#5C3A00';
+            ctx.lineWidth = Math.max(1, r * 0.08);
+            ctx.beginPath();
+            ctx.moveTo(bodyX + cornerR, bodyY);
+            ctx.lineTo(bodyX + bodyW - cornerR, bodyY);
+            ctx.quadraticCurveTo(bodyX + bodyW, bodyY, bodyX + bodyW, bodyY + cornerR);
+            ctx.lineTo(bodyX + bodyW, bodyBottomY - cornerR);
+            ctx.quadraticCurveTo(bodyX + bodyW, bodyBottomY, bodyX + bodyW - cornerR, bodyBottomY);
+            ctx.lineTo(bodyX + cornerR, bodyBottomY);
+            ctx.quadraticCurveTo(bodyX, bodyBottomY, bodyX, bodyBottomY - cornerR);
+            ctx.lineTo(bodyX, bodyY + cornerR);
+            ctx.quadraticCurveTo(bodyX, bodyY, bodyX + cornerR, bodyY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 锁体顶部高光线
+            ctx.strokeStyle = 'rgba(255, 255, 200, 0.55)';
+            ctx.lineWidth = Math.max(0.8, r * 0.05);
+            ctx.beginPath();
+            ctx.moveTo(bodyX + cornerR, bodyY + r * 0.1);
+            ctx.lineTo(bodyX + bodyW - cornerR, bodyY + r * 0.1);
+            ctx.stroke();
+
+            // —— 锁孔 (圆形 + 下方小竖线) ——
+            const keyCY = bodyY + bodyH * 0.42;
+            const keyCircleR = Math.max(2, r * 0.14);
+            const keyStemH = r * 0.28;
+            const keyStemW = Math.max(1.2, r * 0.08);
+            ctx.fillStyle = '#2a1500';
+            ctx.beginPath();
+            ctx.arc(cx, keyCY, keyCircleR, 0, Math.PI * 2);
+            ctx.fill();
+            // 锁孔下方竖线
+            ctx.fillRect(cx - keyStemW / 2, keyCY, keyStemW, keyStemH);
+            // 锁孔下方小三角
+            ctx.beginPath();
+            ctx.moveTo(cx - keyStemW * 0.7, keyCY + keyStemH);
+            ctx.lineTo(cx + keyStemW * 0.7, keyCY + keyStemH);
+            ctx.lineTo(cx, keyCY + keyStemH + keyStemW * 0.9);
+            ctx.closePath();
             ctx.fill();
         }
 
